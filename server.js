@@ -14,7 +14,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express(); // creates an express application
-app.use(helmet());
+
+app.use(
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+                "script-src": [
+                    "'self'",
+                    "https://unpkg.com",
+                    "'sha256-AeG/X32nTUd51hnCpCvD37nRJXsIWABQY9scDHjNlgQ='",
+                    "'sha256-DaTaLfQUfrzmkns/tPRevxKzJs6jN1vu6wKmGi6+1DQ='"
+                ],
+            },
+        },
+    })
+);
+
 const PORT = process.env.PORT || 9000; // defines port number where above express app will run
 app.use(cors());
 
