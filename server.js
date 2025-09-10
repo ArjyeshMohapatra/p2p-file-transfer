@@ -19,12 +19,12 @@ app.use(
     helmet({
         contentSecurityPolicy: {
             directives: {
-                ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+                ...helmet.contentSecurity - Policy.getDefaultDirectives(),
                 "script-src": [
                     "'self'",
-                    "https://unpkg.com",
-                    "'sha256-AeG/X32nTUd51hnCpCvD37nRJXsIWABQY9scDHjNlgQ='",
-                    "'sha256-DaTaLfQUfrzmkns/tPRevxKzJs6jN1vu6wKmGi6+1DQ='"
+                    "'unsafe-inline'", // Allows all your inline scripts to run
+                    "https.unpkg.com",    // Allows PeerJS
+                    "https.cdn.jsdelivr.net"  // Allows the QR Code library
                 ],
             },
         },
