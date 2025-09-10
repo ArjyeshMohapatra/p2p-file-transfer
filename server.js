@@ -2,7 +2,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
-import helmet from 'helmet';
 import http from 'http';
 import { ExpressPeerServer } from 'peer';
 import cors from 'cors';
@@ -14,22 +13,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express(); // creates an express application
-
-app.use(
-    helmet({
-        contentSecurityPolicy: {
-            directives: {
-                ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-                "script-src": [
-                    "'self'",
-                    "'unsafe-inline'", // Allows all your inline scripts to run
-                    "https.unpkg.com",    // Allows PeerJS
-                    "https.cdn.jsdelivr.net"  // Allows the QR Code library
-                ],
-            },
-        },
-    })
-);
 
 const PORT = process.env.PORT || 9000; // defines port number where above express app will run
 app.use(cors());
