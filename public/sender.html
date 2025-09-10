@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>P2P File Transfer - Sending</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <script src="common.js"></script>
+    <style>
+        :root {
+            --primary: #16db65;
+            --primary-dark: #13b156;
+            --accent: #008cff;
+            --danger: #ff4d5d;
+            --bg-glass: rgba(255, 255, 255, 0.22);
+            --bg-glass-dark: rgba(44, 62, 80, 0.6);
+            --glass-blur: 32px;
+            --page-bg: linear-gradient(135deg, #f0f4f9 0%, #c3cfe2 100%);
+            --page-bg-dark: linear-gradient(135deg, #223241 0%, #273952 100%);
+            --text-main: #121825;
+            --text-main-dark: #ededed;
+            --text-sub: #444f5a;
+            --text-sub-dark: #a4b6c3;
+            --file-row-bg: #fff;
+            --file-row-bg-dark: #263342;
+
+            --notification-bg-success: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            --notification-bg-error: linear-gradient(90deg, #ff5f6d, #ff3c4d);
+            --notification-bg-info: linear-gradient(92deg, var(--accent), #08b4d4 80%);
+            --notification-text: #1a252f;
+
+            --bg-dark: rgb(44, 62, 80);
+        }
+
+        a,
+        span,
+        label,
+        button,
+        input,
+        textarea {
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scrollbar-gutter: stable;
+            height: 100%;
+            overflow-y: auto;
+            background: #f0f4f9;
+            scrollbar-width: none;
+            /* For Firefox */
+            -ms-overflow-style: none;
+            /* For Edge */
+        }
+
+        body::-webkit-scrollbar {
+            display: none;
+            /* For Chrome, Safari, and Opera */
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: var(--page-bg);
+            min-height: 100vh;
+            margin: 0;
+            font-family: "Rubik", sans-serif;
+            opacity: 0;
+            transition: background 0.6s ease, opacity 0.3s ease;
+        }
+
+        body.fade-in {
+            opacity: 1;
+            animation: fadeInAnimation ease 0.3s;
+        }
+
+        body.fade-out {
+            opacity: 0;
+            animation: fadeOutAnimation ease 0.3s;
+        }
+
+        @keyframes fadeInAnimation {
+            0% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translateY(0px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOutAnimation {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+        }
+
+        html.dark-mode {
+            background: #223241;
+            --file-row-bg: var(--file-row-bg-dark);
+            --text-main: var(--text-main-dark);
+            --text-sub: var(--text-sub-dark);
+            --bg-glass: var(--bg-glass-dark);
+
+            --notification-bg-success: linear-gradient(90deg, #15b85a, #139d4f);
+            --notification-bg-error: linear-gradient(90deg, #ff5260, #f83846);
+            --notification-bg-info: linear-gradient(92deg, #0081f0, #08a9c9 80%);
+            --notification-text: #fff;
+        }
+
+        html.dark-mode body {
+            background: var(--page-bg-dark);
+        }
+
+        #container {
+            min-width: 340px;
+            width: 94vw;
+            max-width: 550px;
+            padding: 2.5rem;
+            margin: 1rem 1rem 1rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-radius: 2rem;
+            background: var(--bg-glass);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.20);
+            border: 1.2px solid rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(var(--glass-blur));
+            position: relative;
+            gap: 1.2rem;
+        }
+
+        html.dark-mode #container {
+            border: 1.2px solid rgba(255, 255, 255, 0.11);
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.28rem;
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: center;
+        }
+
+        #connection-info {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 1.5rem;
+            padding: 1.5rem 0.5rem 3rem 0.5rem;
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, .35);
+            margin-top: 3rem;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.20);
+        }
+
+        #connection-info.connected-state {
+            padding: 1rem;
+            gap: 0;
+            margin-bottom: 0.5rem;
+            border-radius: 2rem;
+            width: 60%;
+        }
+
+        #connection-info.connected-state h2 {
+            margin: 0;
+        }
+
+        html.dark-mode #connection-info {
+            background: rgba(4, 9, 14, 0.2);
+        }
+
+        #qrcode {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            line-height: 0;
+            display: none;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.5);
+            border: 1px solid rgba(0, 0, 0, 0.452);
+        }
+
+        .glow-qr {
+            animation: qr-glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes qr-glow {
+            from {
+                box-shadow: 0 0 8px 4px rgba(22, 219, 101, 0.4), 0 0 16px 8px rgba(22, 219, 101, 0.2);
+            }
+
+            to {
+                box-shadow: 0 0 16px 8px rgba(22, 219, 101, 0.6), 0 0 32px 16px rgba(22, 219, 101, 0.4);
+            }
+        }
+
+        html.dark-mode .glow-qr {
+            animation: qr-glow-dark 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes qr-glow-dark {
+            from {
+                box-shadow: 0 0 8px 4px rgba(21, 184, 90, 0.6), 0 0 16px 8px rgba(21, 184, 90, 0.3);
+            }
+
+            to {
+                box-shadow: 0 0 16px 8px rgba(21, 184, 90, 0.8), 0 0 32px 16px rgba(21, 184, 90, 0.5);
+            }
+        }
+
+        #file-selection-area {
+            width: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.2rem;
+            scroll-behavior: smooth;
+        }
+
+        #file-selection-area.visible {
+            display: flex;
+        }
+
+        #container.drag-over {
+            border: 2px dashed var(--primary);
+            background: rgba(22, 219, 101, 0.1);
+        }
+
+        #file-label {
+            width: 100%;
+            font-size: 1.18rem;
+            font-weight: 600;
+            padding: 1.4rem 0;
+            border: 2px dashed #a0edda;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-sub);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .7em;
+            transition: all .2s;
+        }
+
+        html.dark-mode #file-label {
+            border-color: #63dea6;
+        }
+
+        #file-label:hover,
+        #container.drag-over #file-label {
+            background: rgba(22, 219, 101, .1);
+            color: var(--primary-dark);
+            border-color: var(--primary);
+            animation: file-glow 2s ease-in-out infinite;
+        }
+
+        #file-selection-area.visible #file-label {
+            animation: file-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes file-glow {
+            0% {
+                box-shadow: 0 0 16px 8px rgba(255, 107, 129, 0.6), 0 0 32px 16px rgba(255, 107, 129, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 16px 8px rgba(66, 219, 245, 0.6), 0 0 32px 16px rgba(66, 219, 245, 0.4);
+            }
+
+            100% {
+                box-shadow: 0 0 16px 8px rgba(255, 107, 129, 0.6), 0 0 32px 16px rgba(255, 107, 129, 0.4);
+            }
+        }
+
+        #fileChoosen {
+            width: 100%;
+            padding: .6rem .4rem .7rem .2rem;
+            max-height: 240px;
+            overflow-y: auto;
+            display: none;
+            scroll-behavior: smooth;
+        }
+
+        #fileSummary {
+            width: 100%;
+            text-align: right;
+            font-size: 1.02rem;
+            color: var(--text-sub);
+            display: none;
+            margin-top: -1rem;
+        }
+
+        .fileList {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            border-radius: 10px;
+            padding: .73rem 1.1rem;
+            margin-bottom: .48rem;
+            background: var(--file-row-bg);
+            color: var(--text-main);
+            box-shadow: 0 2px 8px rgba(80, 100, 180, 0.10);
+        }
+
+        .file-meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .file-details {
+            flex-grow: 1;
+            min-width: 0;
+            margin-left: 1.12rem;
+        }
+
+        .filename-container {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        .icon {
+            width: 29px;
+            height: 29px;
+            margin-right: 1.12rem;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+        }
+
+        .filename {
+            display: inline-block;
+            color: var(--text-main);
+            font-size: 1.08rem;
+            animation: marquee-effect-large 12s linear infinite;
+            white-space: nowrap;
+        }
+
+        @keyframes marquee-effect-large {
+            0% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+
+            10% {
+                transform: translateX(-25%);
+                opacity: 0.9;
+            }
+
+            20% {
+                transform: translateX(-50%);
+                opacity: 0.7;
+            }
+
+            30% {
+                transform: translateX(-75%);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+
+            50% {
+                transform: translateX(200%);
+                opacity: 0;
+            }
+
+            60% {
+                transform: translateX(150%);
+                opacity: 0.5;
+            }
+
+            70% {
+                transform: translateX(100%);
+                opacity: 0.7;
+            }
+
+            80% {
+                transform: translateX(75%);
+                opacity: 0.8;
+            }
+
+            90% {
+                transform: translateX(50%);
+                opacity: 0.9;
+            }
+
+            100% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+        }
+
+        @keyframes marquee-effect-small {
+            0% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+
+            10% {
+                transform: translateX(-25%);
+                opacity: 0.9;
+            }
+
+            20% {
+                transform: translateX(-50%);
+                opacity: 0.7;
+            }
+
+            30% {
+                transform: translateX(-75%);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+
+            50% {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+
+            60% {
+                transform: translateX(100%);
+                opacity: 0.5;
+            }
+
+            70% {
+                transform: translateX(75%);
+                opacity: 0.7;
+            }
+
+            80% {
+                transform: translateX(50%);
+                opacity: 0.8;
+            }
+
+            90% {
+                transform: translateX(25%);
+                opacity: 0.9;
+            }
+
+            100% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+        }
+
+        .file-size {
+            font-size: 1rem;
+            color: var(--text-sub);
+            text-align: left;
+        }
+
+        .file-progress-container {
+            display: none;
+            width: 100%;
+            margin-top: 1.1rem;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            height: 8px;
+            position: relative;
+        }
+
+        .file-progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary);
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+
+        .file-progress-text {
+            position: absolute;
+            top: -22px;
+            left: 0;
+            font-size: 1rem;
+            color: var(--text-sub);
+        }
+
+        .delete-file {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: inherit;
+            font-size: 1rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            width: 100%;
+            gap: 1rem;
+        }
+
+        .action-buttons button {
+            width: 100%;
+            font-size: 1.18rem;
+            font-family: "Rubik", sans-serif;
+            font-weight: 600;
+            padding: 0.92rem 0;
+            border: none;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: transform .18s;
+        }
+
+        #sendButton {
+            background: linear-gradient(90deg, var(--primary) 30%, var(--primary-dark) 100%);
+            color: #fff;
+            display: none;
+        }
+
+        #sendButton:hover {
+            transform: translateY(-2px);
+        }
+
+        #sendButton:active {
+            transform: scale(0.85);
+        }
+
+        #sendButton:disabled {
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #clearAllButton {
+            background: var(--danger);
+            color: #fff;
+            display: none;
+        }
+
+        #clearAllButton:hover {
+            transform: translateY(-2px);
+        }
+
+        #clearAllButton:active {
+            transform: scale(0.85);
+        }
+
+        .backButton {
+            background: #cbd1dd;
+            color: var(--text-sub);
+            font-weight: 600;
+            font-family: "Rubik", sans-serif;
+            border: none;
+            border-radius: 50px;
+            padding: 0.68rem 2.1rem;
+            margin-top: 4rem;
+            cursor: pointer;
+            font-size: .98rem;
+            transition: background .18s, color .18s, transform .18s;
+            will-change: background, color, transform;
+        }
+
+        .backButton:hover {
+            background: var(--danger);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        .backButton:active {
+            background: var(--danger);
+            color: #fff;
+            transform: scale(0.85);
+        }
+
+        html.dark-mode .backButton {
+            background: rgba(34, 50, 65, 0.85);
+            color: var(--text-main-dark);
+        }
+
+        #darkModeButton {
+            position: absolute;
+            top: 21px;
+            right: 21px;
+            z-index: 10;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgb(255, 255, 255);
+            color: #35394f;
+            font-size: 1.34rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .18s;
+        }
+
+        #darkModeButton:hover {
+            transform: scale(1.2);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        #darkModeButton:active {
+            transform: scale(0.85);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        html.dark-mode #darkModeButton {
+            background: #3b557b;
+            color: #ffe27a;
+        }
+
+        html.dark-mode #darkModeButton:hover {
+            background: #212936;
+            color: #fff;
+        }
+
+        html.dark-mode #darkModeButton:active {
+            background: #212936;
+            color: #fff;
+            transform: scale(0.85);
+        }
+
+        #message {
+            position: fixed;
+            top: 50px;
+            left: 50%;
+            opacity: 0;
+            z-index: 1000;
+            color: var(--notification-text);
+            padding: 0.8rem 1.5rem;
+            font-weight: 600;
+            border-radius: 50px;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transform: translate(-50%, -20px);
+            /* Start position for animation */
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            will-change: opacity, transform;
+        }
+
+        #message.show {
+            transform: translate(-50%, 0);
+            /* End position for animation */
+            opacity: 1;
+        }
+
+        #message.success {
+            background: var(--notification-bg-success);
+        }
+
+        #message.error {
+            background: var(--notification-bg-error);
+        }
+
+        #message.info {
+            background: var(--notification-bg-info);
+        }
+
+        #code-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        #peerIdDisplay {
+            font-size: 2rem;
+            font-weight: 600;
+            letter-spacing: .19em;
+            user-select: none;
+            background: linear-gradient(90deg, var(--primary) 30%, var(--accent) 100%);
+            color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        #codeButtons {
+            display: flex;
+            flex-direction: row;
+            gap: 0.8rem;
+        }
+
+        #copyIdButton {
+            background: transparent;
+            border: 2px solid var(--text-sub-dark);
+            color: var(--text-sub-dark);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        #copyIdButton:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(1.1);
+        }
+
+        #copyIdButton:active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: scale(0.85);
+        }
+
+        #shareIdButton {
+            display: none;
+            background: transparent;
+            border: 2px solid var(--text-sub-dark);
+            color: var(--text-sub-dark);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1rem;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        #shareIdButton:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        #shareIdButton:active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            transform: scale(0.85);
+        }
+
+        #cancelButton {
+            background: var(--danger);
+            color: #fff;
+            transition: transform 0.2s ease;
+        }
+
+        #cancelButton:hover {
+            transform: translateY(-2px);
+        }
+
+        #cancelButton:active {
+            transform: scale(0.85);
+        }
+
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .dialog-box {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            margin: 1rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            font-size: 1rem;
+        }
+
+        html.dark-mode .dialog-box {
+            background: var(--bg-dark);
+            color: white;
+        }
+
+        .dialog-buttons button {
+            padding: 0.6rem 3rem 0.6rem 3rem;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: transform 0.3s, background 0.3s, color 0.3s;
+        }
+
+        .dialog-buttons button:hover {
+            transform: translateY(-3px) scale(1.03);
+        }
+
+        .dialog-buttons button:active {
+            transform: translateY(-3px) scale(1.03);
+        }
+
+        #confirmYes {
+            background: var(--danger);
+            color: #fff;
+            margin-right: 2rem;
+        }
+
+        #confirmYes:hover {
+            background: #e63946;
+        }
+
+        #confirmYes:active {
+            background: #e63946;
+        }
+
+        #confirmNo {
+            background: #ddd;
+            color: #333;
+            margin-left: 2rem;
+        }
+
+        #confirmNo:hover {
+            background: #bbb;
+            color: #111;
+        }
+
+        #confirmNo:active {
+            background: #bbb;
+            color: #111;
+        }
+
+        .custom-checkbox {
+            display: none;
+        }
+
+        label[for="keepScreenOnCheckbox"] {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .toggle-switch {
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 12px;
+            position: relative;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .toggle-switch::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s ease-in-out;
+        }
+
+        .custom-checkbox:checked+label[for="keepScreenOnCheckbox"] .toggle-switch {
+            background-color: var(--primary);
+        }
+
+        .custom-checkbox:checked+label[for="keepScreenOnCheckbox"] .toggle-switch::before {
+            transform: translateX(20px);
+        }
+
+        html.dark-mode .toggle-switch {
+            background-color: #555;
+        }
+
+        html.dark-mode .custom-checkbox:checked+label[for="keepScreenOnCheckbox"] .toggle-switch {
+            background-color: var(--primary-dark);
+        }
+
+        .options-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1rem;
+            gap: 0.5rem;
+            color: var(--text-sub);
+        }
+
+        html.dark-mode .options-container {
+            color: var(--text-sub-dark);
+        }
+
+        @media (max-width: 600px) {
+            #container {
+                padding: 2rem 1.5rem;
+                gap: 1rem;
+                width: 90vw;
+                min-width: auto;
+            }
+
+            h2 {
+                font-size: 1.1rem;
+            }
+
+            #connection-info {
+                padding: 1rem 0.5rem 1.5rem 0.5rem;
+                margin-top: 2.5rem;
+                gap: 0.8rem;
+            }
+
+            #connection-info.connected-state {
+                width: 75%;
+            }
+
+            #code-container {
+                flex-direction: column;
+                flex-wrap: nowrap;
+                gap: 0.5rem;
+                width: 100%;
+                justify-content: center;
+                align-items: center;
+            }
+
+            #peerIdDisplay {
+                font-size: 1.5rem;
+                letter-spacing: .08em;
+            }
+
+            #codeButtons {
+                display: flex;
+                flex-direction: row;
+                gap: 1rem;
+            }
+
+            #copyIdButton {
+                width: 36px;
+                height: 36px;
+                font-size: 0.9rem;
+            }
+
+            #shareIdButton {
+                width: 36px;
+                height: 36px;
+                font-size: 0.9rem;
+            }
+
+            #qrcode {
+                transform: scale(0.85);
+                margin-top: -10px;
+            }
+
+            #file-label {
+                font-size: 1rem;
+                padding: 1.2rem 0;
+            }
+
+            .fileList {
+                padding: .6rem .8rem;
+                font-size: 0.95rem;
+            }
+
+            .filename {
+                font-size: 0.95rem;
+                animation: marquee-effect-small 8s linear infinite;
+            }
+
+            .file-size {
+                font-size: 0.85rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .action-buttons button {
+                font-size: 1.05rem;
+                padding: 0.8rem 0;
+            }
+
+            .backButton {
+                margin-top: 1.5rem;
+                padding: 0.6rem 1.8rem;
+                font-size: 0.9rem;
+            }
+
+            .back #darkModeButton {
+                top: 1rem;
+                right: 1rem;
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
+
+            .dialog-box {
+                padding: 1rem;
+                font-size: 0.9rem;
+                max-width: 280px;
+            }
+
+            .dialog-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .dialog-buttons button {
+                width: 100%;
+                font-size: 0.9rem;
+                padding: 0.7rem;
+            }
+
+            #confirmYes {
+                margin-right: 0rem;
+            }
+
+            #confirmNo {
+                margin-left: 0rem;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            #container {
+                max-width: 650px;
+            }
+
+            h2 {
+                font-size: 1.4rem;
+            }
+
+            #peerIdDisplay {
+                font-size: 2.2rem;
+            }
+
+            #file-label {
+                font-size: 1.25rem;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            html {
+                font-size: 18px;
+            }
+
+            #container {
+                max-width: 700px;
+            }
+        }
+
+        @media (min-width: 2200px) {
+            html {
+                font-size: 22px;
+            }
+
+            #container {
+                max-width: 850px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <input type="file" id="inputFile" multiple style="display:none">
+
+    <div id="message"></div>
+
+    <div id="container">
+
+        <button id="darkModeButton" title="Toggle dark mode" aria-label="Toggle dark mode"><i
+                class="fa-solid fa-sun"></i></button>
+
+        <div id="connection-info">
+
+            <h2><i class="fa-solid fa-spinner fa-spin"></i> Getting Online...</h2>
+
+            <div id="code-container">
+                <div id="peerIdDisplay"></div>
+                <div id="codeButtons">
+                    <button id="copyIdButton" title="Copy code"><i class="fa-solid fa-copy"></i></button>
+                    <button id="shareIdButton" title="Share code"><i class="fa-solid fa-share-nodes"></i></button>
+                </div>
+            </div>
+
+            <div id="qrcode" class="glow-qr"></div>
+
+        </div>
+
+        <div id="file-selection-area">
+
+            <label for="inputFile" id="file-label"><i class="fa-solid fa-folder-open"></i> Choose or Drag Files</label>
+            <div id="fileChoosen"></div>
+            <div id="fileSummary"></div>
+
+            <div class="action-buttons">
+                <button id="clearAllButton"><i class="fa-solid fa-trash"></i> Clear All</button>
+                <button id="sendButton" disabled><i class="fa-solid fa-paper-plane"></i> Send Files</button>
+            </div>
+
+            <div class="options-container">
+                <input type="checkbox" id="keepScreenOnCheckbox" class="custom-checkbox">
+                <label for="keepScreenOnCheckbox">Keep Screen On
+                    <span class="toggle-switch"></span>
+                </label>
+            </div>
+        </div>
+
+        <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
+
+    </div>
+
+    <div id="confirmDialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-box">
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="dialog-buttons">
+                <button id="confirmYes">Yes</button>
+                <button id="confirmNo">No</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        "use strict";
+        const container = document.getElementById("container");
+        const connectionInfoDiv = document.getElementById("connection-info");
+        const h2_connection = document.querySelector('#connection-info h2');
+        const peerIdDisplay = document.getElementById('peerIdDisplay');
+        const qrCodeContainer = document.getElementById('qrcode');
+        const fileSelectionArea = document.getElementById('file-selection-area');
+        const inputtedFiles = document.getElementById("inputFile");
+        const filesDisplayArea = document.getElementById("fileChoosen");
+        const fileSummary = document.getElementById("fileSummary");
+        const clearAllButton = document.getElementById("clearAllButton");
+        const sendButton = document.getElementById("sendButton");
+        const backButton = document.querySelector('.backButton');
+        const darkModeButton = document.getElementById("darkModeButton");
+        const message = document.getElementById("message");
+        const codeContainer = document.getElementById('code-container');
+        const copyIdButton = document.getElementById('copyIdButton');
+        const body = document.body;
+        const overlay = document.getElementById("confirmDialog");
+        const msg = document.getElementById("confirmMessage");
+        const yesBtn = document.getElementById("confirmYes");
+        const noBtn = document.getElementById("confirmNo");
+        const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
+        const shareIdButton = document.getElementById('shareIdButton');
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        body.classList.add('fade-in');
+
+        let peer = null;
+        let connection = null;
+        let currentFile = null;
+        let selectedFiles = [];
+        let isTransferring = false; // Flag to control the transfer loop
+        let isReconnecting = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 3;
+        let pingingInterval = null;
+
+        const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
+
+        async function initPeer() {
+            let peerId;
+
+            try {
+                peerId = await generateNewPeerId(3);
+            } catch (error) {
+                console.error("Failed to get a peer ID:", error);
+                showMessage("Server not running. Please try again in a moment.", "error");
+                setTimeout(() => {
+                    navigateWithAnimation("index.html");
+                }, 1500);
+                return;
+            }
+
+            // null -> object's state isnt restored
+            // '' -> no new page title
+            // history.replaceState(null, '', 'sender.html');
+            history.replaceState(null, '', `sender.html?peerId=${peerId}`);
+
+            peer = new Peer(peerId, {
+                host: 'p2p-file-transfer-app-jdx6.onrender.com',
+                port: 443,
+                path: '/peerjs/myapp',
+                secure: true,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                        { urls: 'stun:stun.services.mozilla.com' }
+                    ]
+                }
+            });
+
+            peer.on('open', function (id) {
+                h2_connection.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Ready! Share this code:';
+                peerIdDisplay.textContent = id;
+                codeContainer.style.display = 'flex';
+
+                const receiverUrl = window.location.href.replace(/[^/]*$/, '') + 'receiver.html?peerId=' + id;
+                new QRCode(qrCodeContainer, {
+                    text: receiverUrl,
+                    width: 160,
+                    height: 160,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                qrCodeContainer.style.display = 'block';
+
+                copyIdButton.addEventListener('click', function () { copyText(id); });
+
+                if (navigator.share) {
+                    shareIdButton.style.display = 'flex'; // Show the button
+
+                    shareIdButton.addEventListener('click', async () => {
+                        try {
+                            await navigator.share({
+                                text: `P2P File Transfer Code\n\nUse this link to receive files from me!\n\nCode: ${id}\n\n${receiverUrl}`
+                            });
+                            console.log('Share was successful.');
+                        } catch (error) {
+                            console.error('Error sharing:', error);
+                        }
+                    });
+                }
+            });
+
+            peer.on('connection', function (conn) {
+                connection = conn;
+
+                h2_connection.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting to Receiver <i class="fa fa-check-circle"></i>';
+                qrCodeContainer.style.display = 'none';
+                codeContainer.style.display = 'none';
+
+                connection.on('open', () => {
+                    h2_connection.innerHTML = '<h2><i class="fa-solid fa-link"></i> Connected to Receiver <i class="fa fa-check-circle" style="color:var(--primary);"></i></h2>';
+                    connectionInfoDiv.classList.add('connected-state');
+
+                    fileSelectionArea.classList.add('visible');
+
+                    console.log("Receiver connected.");
+                    showMessage("Receiver connected!", "success");
+
+                    connection.peerConnection.onconnectionstatechange = () => {
+                        const state = connection.peerConnection.connectionState;
+                        console.log("Connection state changed:", state);
+
+                        if (state === "disconnected" && !isReconnecting) {
+                            isReconnecting = true;
+                            reconnectAttempts++;
+                            showMessage(`Connection lost. Attempt ${reconnectAttempts} of ${maxReconnectAttempts}...`, "info");
+
+                            // close previous connection without waiting for receiver
+                            if (connection && connection.open) {
+                                connection.close();
+                            }
+
+                            setTimeout(() => { isReconnecting = false; }, 3000);
+
+                            if (reconnectAttempts >= maxReconnectAttempts) {
+                                showMessage("Unable to reconnect after 3 attempts. Redirecting...", "error");
+                                setTimeout(() => navigateWithAnimation("sender.html"), 1500);
+                            }
+                        }
+                        else if (state === "failed") {
+                            showMessage("Connection failed permanently. Redirecting...", "error");
+                            setTimeout(() => navigateWithAnimation("sender.html"), 1500);
+                        }
+                        else if (state === "connected") {
+                            reconnectAttempts = 0;
+                            isReconnecting = false;
+                            showMessage("Reconnected successfully!", "success");
+                        }
+                    };
+                    if (pingingInterval) clearInterval(pingingInterval); // removes any old pinges
+                    pingingInterval = setInterval(() => {
+                        if (connection && connection.open) {
+                            connection.send({ type: "ping" });
+                        }
+                    }, 1000); // sends ping to receiver at every 1 second interval
+                });
+
+                conn.on('data', function (data) {
+                    if (data.type === 'pong') {
+                        // Pong received, we know the connection is healthy. No action needed.
+                        return;
+                    }
+
+                    console.log('SENDER (Master Spy): Received a message ->', data);
+
+                    if (data.type === 'skip') {
+                        const fileName = data.payload.name;
+                        console.log('Receiver skipped file:', fileName);
+                        const fileObj = selectedFiles.find(f => f.name === fileName);
+                        if (fileObj) fileObj.skippedByReceiver = true;
+                    }
+                    if (data.type === 'rejectAll') {
+                        showMessage('Receiver rejected all files.', 'error');
+                        isTransferring = false;
+                    }
+                    if (data.type === 'cancel') {
+                        cancelTransfer();
+                        showMessage('Receiver rejected the transfer.', 'error');
+                        setTimeout(function () {
+                            navigateWithAnimation("sender.html");
+                        }, 1000);
+                    }
+                });
+
+                conn.on('close', function () {
+                    if (pingingInterval) clearInterval(pingingInterval);
+                    showMessage('Receiver has disconnected.', 'info');
+                    isTransferring = false;
+                    resetUI();
+                    setTimeout(function () {
+                        body.classList.add('fade-out');
+                        setTimeout(function () {
+                            window.location.href = 'index.html';
+                        }, 350);
+                    }, 1000);
+                });
+            });
+
+            peer.on('error', function (err) {
+                if (err.type === 'network' && connection && connection.open) {
+                    console.warn('Signaling server disconnected.');
+                    return;
+                }
+                alert('An error occurred with PeerJS: ' + err);
+                console.error(err);
+            });
+        }
+
+        initPeer();
+
+        async function generateNewPeerId(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(`${SERVER_URL}/generate-id`);
+                    if (!response.ok) throw new Error('Server not responding');
+                    const data = await response.json();
+                    return data.id;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    await new Promise(r => setTimeout(r, 1000)); // wait 1s before retry
+                }
+            }
+        }
+
+        function updateSummary() {
+            const activeFiles = selectedFiles.filter(file => !file.skippedByUser);
+            if (activeFiles.length === 0) {
+                filesDisplayArea.style.display = "none";
+                fileSummary.style.display = "none";
+                clearAllButton.style.display = "none";
+                sendButton.style.display = "none";
+                sendButton.disabled = true;
+            } else {
+                let totalSize = 0;
+                for (let i = 0; i < activeFiles.length; i++) {
+                    totalSize += activeFiles[i].size;
+                }
+                fileSummary.style.display = "block";
+                fileSummary.textContent = `${activeFiles.length} file(s) | Total: ${formatFileSize(totalSize)}`;
+                clearAllButton.style.display = "block";
+                sendButton.style.display = "block";
+                sendButton.disabled = false;
+            }
+        }
+
+        function createFileElement(file) {
+            const div = document.createElement("div");
+            div.className = "fileList";
+            div.dataset.fileName = file.name;
+
+            div.innerHTML = `
+                <div class="file-info">
+                    <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
+                    <div class="file-details">
+                        <div class="filename-container">
+                            <span class="filename" title="${file.name}">${file.name}</span>
+                        </div>
+                        <div class="file-meta-row">
+                            <span class="file-size">${formatFileSize(file.size)}</span>
+                            <button class="delete-file" title="Remove file"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                            </div>
+                    </div>
+                </div>
+                <div class="file-progress-container" style="display: none;">
+                    <span class="file-progress-text">0%</span>
+                    <div class="file-progress-bar"></div>
+                </div>
+            `;
+
+            const deleteBtn = div.querySelector(".delete-file");
+            deleteBtnEvent(deleteBtn, file, div);
+            return div;
+        }
+
+        function deleteBtnEvent(deleteBtn, file, div) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevents any parent click events
+                showConfirm(`Remove file "${file.name}" ?`, () => {
+                    file.skippedByUser = true;
+
+                    // If a transfer is already in progress, we MUST notify the receiver.
+                    if (isTransferring && connection && connection.open) {
+                        connection.send({ type: "skip", payload: { name: file.name } });
+                    }
+
+                    // If we're deleting the specific file being sent right now, show a special message.
+                    if (isTransferring && currentFile && currentFile.name === file.name) {
+                        showMessage(`"${file.name}" transfer cancelled`, "info");
+                    }
+                    div.remove();
+                    updateSummary();
+                });
+            });
+        }
+
+        function renderFiles() {
+            filesDisplayArea.innerHTML = "";
+            selectedFiles.sort((a, b) => a.size - b.size);
+            if (selectedFiles.length > 0) {
+                filesDisplayArea.style.display = "block";
+                selectedFiles.forEach(file => {
+                    if (file.skipped) return; // don't render skipped files
+                    filesDisplayArea.appendChild(createFileElement(file))
+                });
+            }
+            updateSummary();
+        }
+
+        function addFiles(fileList) {
+            for (const file of fileList) {
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            }
+            renderFiles();
+        }
+
+        function resetUI() {
+            isTransferring = false;
+            updateSummary();
+        }
+
+        function cancelTransfer() {
+            if (isTransferring) {
+                isTransferring = false; // This will stop the sending loop
+                currentFile = null;
+                if (connection && connection.open) {
+                    connection.send({ type: "cancel" }); // Notify receiver
+                    connection.close(); // Close the connection
+                }
+                showMessage("Transfer cancelled", "error");
+                resetUI();
+            }
+        }
+
+        backButton.addEventListener('click', () => {
+            if (connection && connection.open) {
+                showConfirm("Do you want to disconnect ?", () => {
+                    if (isTransferring) {
+                        cancelTransfer();
+                    }
+                    // remove the listener so the browser doesn't show its own pop-up
+                    window.removeEventListener('beforeunload', handleBeforeUnload);
+                    navigateWithAnimation("sender.html");
+                });
+            } else {
+                navigateWithAnimation("index.html");
+            }
+        });
+
+        inputtedFiles.addEventListener("change", (e) => addFiles(e.target.files));
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            container.classList.add('drag-over');
+        });
+        container.addEventListener('dragleave', () => container.classList.remove('drag-over'));
+        container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            container.classList.remove('drag-over');
+            addFiles(e.dataTransfer.files);
+        });
+        clearAllButton.addEventListener('click', () => {
+            showConfirm("Clear all files ?", () => {
+                selectedFiles = [];
+                renderFiles();
+            });
+        });
+
+        sendButton.addEventListener('click', async () => {
+            if (selectedFiles.length === 0 || !connection || !connection.open) {
+                showMessage("Please select files and ensure you are connected.", "error");
+                return;
+            }
+
+            isTransferring = true;
+            sendButton.disabled = true;
+            clearAllButton.disabled = true;
+            let successfulTransfers = 0;
+            let lastAck = { name: '', index: -1 };
+
+            lastAck = { name: '', index: -1 }; // incase lastAck holds values for old batch of files
+
+            const handleData = (data) => {
+                if (data.type === 'ack') {
+                    lastAck = { name: data.name, index: data.index };
+                }
+                if (data.type === 'skip') {
+                    const fileObj = selectedFiles.find(f => f.name === data.payload.name);
+                    if (fileObj) {
+                        fileObj.skippedByReceiver = true;
+                    }
+                }
+            };
+            connection.on('data', handleData);
+
+            const CHUNK_SIZE = 1024 * 1024;
+            selectedFiles.sort((a, b) => a.size - b.size);
+
+            for (const file of selectedFiles) {
+                if (file.skippedByUser) continue;
+                currentFile = file;
+                const fileUiElement = filesDisplayArea.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
+                if (!fileUiElement) continue;
+
+                const progressBar = fileUiElement.querySelector('.file-progress-bar');
+                const progressText = fileUiElement.querySelector('.file-progress-text');
+                const progressContainer = fileUiElement.querySelector('.file-progress-container');
+                progressContainer.style.display = 'block';
+
+                let transferFailed = false;
+
+                try {
+                    connection.send({
+                        type: "start",
+                        payload: { name: file.name, size: file.size, type: file.type }
+                    });
+
+                    let offset = 0;
+                    let chunkIndex = 0;
+
+                    while (offset < file.size) {
+                        if (!isTransferring || file.skippedByReceiver || file.skippedByUser) {
+                            transferFailed = true;
+                            break;
+                        }
+
+                        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+                        const buffer = await chunk.arrayBuffer();
+
+                        connection.send({
+                            type: "chunk",
+                            payload: { name: file.name, index: chunkIndex, data: buffer }
+                        });
+
+                        const waitStartTime = Date.now();
+                        while (lastAck.name !== file.name || lastAck.index < chunkIndex) {
+                            await new Promise(resolve => setTimeout(resolve, 50));
+                            if (Date.now() - waitStartTime > 30000) {
+                                throw new Error("Acknowledgement Timeout");
+                            }
+                            if (file.skippedByReceiver) {
+                                throw new Error("Receiver cancelled this file");
+                            }
+                        }
+
+                        offset += chunk.size;
+                        const percent = Math.round((offset / file.size) * 100);
+                        progressBar.style.width = percent + "%";
+                        progressText.textContent = percent + "%";
+                        chunkIndex++;
+                    }
+                } catch (err) {
+                    transferFailed = true;
+                    console.error(`Transfer of "${file.name}" failed:`, err);
+                    showMessage(`Transfer of "${file.name}" failed: ${err.message}`, "error");
+                    progressText.textContent = "Failed";
+                    fileUiElement.style.opacity = '0.3';
+                    fileUiElement.style.backgroundColor = "red";
+                }
+
+                if (transferFailed) {
+                    continue;
+                } else {
+                    connection.send({ type: 'end', payload: { name: file.name } });
+                    lastAck = { name: '', index: -1 };
+                    progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
+                    successfulTransfers++;
+                }
+
+                currentFile = null;
+
+                if (successfulTransfers === selectedFiles.length && selectedFiles.length > 0) {
+                    showMessage("All files sent successfully!", "success");
+                    setTimeout(() => {
+                        selectedFiles = [];
+                        renderFiles();
+                    }, 1500);
+                }
+            }
+            connection.off('data', handleData);
+            isTransferring = false;
+            sendButton.disabled = false;
+            clearAllButton.disabled = false;
+        });
+
+        initializeDarkMode();
+        pageShow();
+
+        keepScreenOnCheckbox.addEventListener('change', () => {
+            toggleWakeLock(keepScreenOnCheckbox.checked);
+        });
+
+        // automatically release the lock if the connection closes
+        window.addEventListener('beforeunload', () => {
+            toggleWakeLock(false);
+        });
+
+        window.addEventListener('beforeunload', function (event) {
+            if (isTransferring) {
+                showConfirm('File transfer is in progress. Are you sure you want to leave ?', () => {
+                    navigateWithAnimation('sender.html');
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>

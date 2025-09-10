@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>P2P File Transfer - Menu</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        referrerpolicy="no-referrer" />
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="common.js"></script>
+    <style>
+        :root {
+            --primary: #16db65;
+            --primary-dark: #13b156;
+            --accent: #008cff;
+            --danger: #ff4d5d;
+            --bg-glass: rgba(255, 255, 255, 0.22);
+            --bg-glass-dark: rgba(44, 62, 80, 0.6);
+            --glass-blur: 32px;
+            --page-bg: linear-gradient(135deg, #f0f4f9 0%, #c3cfe2 100%);
+            --page-bg-dark: linear-gradient(135deg, #223241 0%, #273952 100%);
+            --text-main: #121825;
+            --text-main-dark: #ededed;
+            --text-sub: #444f5a;
+            --text-sub-dark: #a4b6c3;
+        }
+
+        a,
+        button,
+        input,
+        textarea {
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scrollbar-gutter: stable;
+            height: 100%;
+            overflow-y: visible;
+            background: #f0f4f9;
+            scrollbar-width: none;
+            /* For Firefox */
+            -ms-overflow-style: none;
+            /* For Internet Explorer and Edge */
+        }
+
+        body::-webkit-scrollbar {
+            display: none;
+            /* For Chrome, Safari, and Opera */
+        }
+
+        html.dark-mode body {
+            background: var(--page-bg-dark);
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            background: var(--page-bg);
+            align-items: center;
+            font-family: "Rubik", sans-serif;
+            opacity: 0;
+            transition: background 0.6s ease, opacity 0.3s ease;
+        }
+
+        body.fade-in {
+            opacity: 1;
+            animation: fadeInAnimation ease 0.3s;
+        }
+
+        body.fade-out {
+            opacity: 0;
+            animation: fadeOutAnimation ease 0.3s;
+        }
+
+        html.dark-mode {
+            background: #223241;
+            --text-main: var(--text-main-dark);
+            --text-sub: var(--text-sub-dark);
+        }
+
+        html.dark-mode body {
+            background: var(--page-bg-dark);
+        }
+
+        @keyframes fadeInAnimation {
+            0% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translateY(0px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOutAnimation {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+        }
+
+        #container {
+            min-width: 340px;
+            width: 94vw;
+            max-width: 410px;
+            padding: 2.5rem;
+            margin: 1rem 1rem 1rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-radius: 2rem;
+            background: var(--bg-glass);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.20);
+            border: 1.2px solid rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(var(--glass-blur));
+            position: relative;
+            gap: 1.5rem;
+        }
+
+        html.dark-mode #container {
+            background: var(--bg-glass-dark);
+            border: 1.2px solid rgba(255, 255, 255, 0.11);
+        }
+
+        h1 {
+            color: var(--text-main);
+            font-size: 2rem;
+            text-align: center;
+            margin: 2rem 0rem 0rem 0rem;
+        }
+
+        #container p {
+            color: var(--text-sub);
+            text-align: center;
+            font-size: 1.3rem;
+            margin: 0;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            gap: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .menu-buttons button {
+            width: 100%;
+            min-width: 140px;
+            font-size: 1.18rem;
+            font-family: "Rubik", sans-serif;
+            padding: 0.92rem 0;
+            border: none;
+            border-radius: 60px;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.66em;
+            transition: transform .18s;
+        }
+
+        .menu-buttons button i.fa-solid {
+            font-size: 1.25em;
+            margin-right: .3em;
+        }
+
+        #sendPageButton {
+            background: linear-gradient(90deg, var(--primary) 30%, var(--primary-dark) 100%);
+            transition: transform .18s;
+        }
+
+        #sendPageButton:hover {
+            transform: translateY(-3px) scale(1.03);
+        }
+
+        #sendPageButton:active {
+            transform: scale(0.85);
+        }
+
+        #receivePageButton {
+            background: linear-gradient(92deg, var(--accent) 20%, #0880d0 100%);
+            transition: transform .18s;
+        }
+
+        #receivePageButton:hover {
+            transform: translateY(-3px) scale(1.03);
+        }
+
+        #receivePageButton:active {
+            transform: scale(0.85);
+        }
+
+        #darkModeButton {
+            position: absolute;
+            top: 21px;
+            right: 21px;
+            z-index: 10;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgb(255, 255, 255);
+            color: #35394f;
+            font-size: 1.34rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .18s;
+        }
+
+        #darkModeButton:hover {
+            transform: scale(1.1);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        #darkModeButton:active {
+            transform: scale(0.85);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        html.dark-mode #darkModeButton {
+            background: #3b557b;
+            color: #ffe27a;
+
+        }
+
+        html.dark-mode #darkModeButton:hover {
+            background: #212936;
+            color: #fff;
+        }
+
+        html.dark-mode #darkModeButton:active {
+            background: #212936;
+            color: #fff;
+            transform: scale(0.85);
+        }
+
+        @media (max-width: 600px) {
+            #container {
+                padding: 2rem 1rem;
+                gap: 1.2rem;
+                min-width: auto;
+                width: 90vw;
+            }
+
+            h1 {
+                font-size: 1.6rem;
+                margin-top: 2.5rem;
+            }
+
+            p {
+                font-size: 1rem;
+            }
+
+            .menu-buttons {
+                flex-direction: column;
+            }
+
+            .menu-buttons button {
+                font-size: 1.1rem;
+                padding: 0.85rem 0;
+            }
+
+            #darkModeButton {
+                top: 1rem;
+                right: 1rem;
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            #container {
+                max-width: 450px;
+                padding: 3rem;
+            }
+
+            h1 {
+                font-size: 2.2rem;
+            }
+
+            p {
+                font-size: 1.1rem;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            html {
+                font-size: 18px;
+            }
+
+            #container {
+                max-width: 500px;
+            }
+        }
+
+        @media (min-width: 2200px) {
+            html {
+                font-size: 22px;
+            }
+
+            #container {
+                max-width: 600px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <button id="darkModeButton" title="Toggle dark mode" aria-label="Toggle dark mode">
+            <i class="fa-solid fa-sun"></i>
+        </button>
+        <h1><i class="fa-solid fa-share-nodes"></i> P2P File Transfer</h1>
+        <p>Instantly share files with anyone.</p>
+        <div class="menu-buttons">
+            <button id="sendPageButton"><i class="fa-solid fa-arrow-up-from-bracket"></i>Send Files</button>
+            <button id="receivePageButton"><i class="fa-solid fa-download"></i>Receive Files</button>
+        </div>
+    </div>
+    <script>
+        "use strict";
+        const sendPageButton = document.getElementById("sendPageButton");
+        const receivePageButton = document.getElementById("receivePageButton");
+        const darkModeButton = document.getElementById("darkModeButton");
+        const body = document.body;
+
+        body.classList.add('fade-in');
+
+        sendPageButton.addEventListener('click', async () => {
+            sendPageButton.disabled = true;
+            sendPageButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading';
+            setTimeout(() => {
+                navigateWithAnimation(`sender.html`);
+                sendPageButton.disabled = false;
+                sendPageButton.innerHTML = '<i class="fa-solid fa-arrow-up-from-bracket"></i> Send Files';
+            }, 500);
+        });
+
+        receivePageButton.addEventListener('click', () => {
+            receivePageButton.disabled = true;
+            receivePageButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading';
+
+            setTimeout(() => {
+                navigateWithAnimation('receiver.html');
+                receivePageButton.disabled = false;
+                receivePageButton.innerHTML = '<i class="fa-solid fa-download"></i> Receive Files';
+            }, 500);
+        });
+
+        initializeDarkMode();
+        pageShow();
+
+    </script>
+</body>
+
+</html>

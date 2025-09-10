@@ -1,0 +1,1818 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>P2P File Transfer - Receiving</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <script src="common.js"></script>
+    <style>
+        :root {
+            --primary: #16db65;
+            --primary-dark: #15984c;
+            --accent: #008cff;
+            --danger: #ff4d5d;
+            --bg-glass: rgba(255, 255, 255, 0.21);
+            --bg-glass-dark: rgba(44, 62, 80, 0.6);
+            --glass-blur: 32px;
+            --page-bg: linear-gradient(135deg, #f0f4f9 0%, #c3cfe2 100%);
+            --page-bg-dark: linear-gradient(135deg, #223241 0%, #273952 100%);
+            --text-main: #121825;
+            --text-main-dark: #ededed;
+            --file-row-bg: #fff;
+            --file-row-bg-dark: #263342;
+            --text-sub: #444f5a;
+            --text-sub-dark: #a4b6c3;
+
+            --notification-bg-success: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            --notification-bg-error: linear-gradient(90deg, #ff5f6d, #ff3c4d);
+            --notification-bg-info: linear-gradient(92deg, var(--accent), #08b4d4 80%);
+            --notification-text: #1a252f;
+
+            --bg-dark: rgb(44, 62, 80);
+        }
+
+        a,
+        span,
+        label,
+        button,
+        input,
+        textarea {
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scrollbar-gutter: stable;
+            height: 100%;
+            /* overflow: hidden; */
+            overflow-y: auto;
+            /* disable scrolling beyond content */
+            background: #f0f4f9;
+            scrollbar-width: none;
+            /* For Firefox */
+            -ms-overflow-style: none;
+            /* For Internet Explorer and Edge */
+        }
+
+        body::-webkit-scrollbar {
+            display: none;
+            /* For Chrome, Safari, and Opera */
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--page-bg);
+            font-family: "Rubik", sans-serif;
+            opacity: 0;
+            transition: background 0.6s ease, opacity 0.3s ease;
+        }
+
+        body.fade-in {
+            opacity: 1;
+            animation: fadeInAnimation ease 0.3s;
+        }
+
+        body.fade-out {
+            opacity: 0;
+            animation: fadeOutAnimation ease 0.3s;
+        }
+
+        #main-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        @keyframes fadeInAnimation {
+            0% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translateY(0px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOutAnimation {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(15px);
+                opacity: 0;
+            }
+        }
+
+        html.dark-mode {
+            background: #223241;
+            --text-main: var(--text-main-dark);
+            --file-row-bg: var(--file-row-bg-dark);
+            --text-sub: var(--text-sub-dark);
+
+            --notification-bg-success: linear-gradient(90deg, #15b85a, #139d4f);
+            --notification-bg-error: linear-gradient(90deg, #ff5260, #f83846);
+            --notification-bg-info: linear-gradient(92deg, #0081f0, #08a9c9 80%);
+            --notification-text: #fff;
+        }
+
+        html.dark-mode body {
+            background: var(--page-bg-dark);
+        }
+
+        #container {
+            min-width: 340px;
+            width: 94vw;
+            max-width: 440px;
+            padding: 2.5rem;
+            margin: 1rem 1rem 1rem 1rem;
+            border-radius: 2rem;
+            background: var(--bg-glass);
+            border: 1.2px solid rgba(220, 220, 220, 0.24);
+            backdrop-filter: blur(var(--glass-blur));
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.13);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            gap: 1.3rem;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        html.dark-mode #container {
+            background: var(--bg-glass-dark);
+            border: 1.2px solid rgba(255, 255, 255, 0.10);
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.28rem;
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: center;
+            margin-top: 2.5rem;
+        }
+
+        #manual-entry {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            width: 100%;
+        }
+
+        #peerIdInput {
+            font-size: 1.1rem;
+            font-family: "Rubik", sans-serif;
+            padding: 0.6em 1.2em;
+            border-radius: 50px;
+            border: 1.3px solid var(--accent);
+            background: rgba(230, 245, 255, 0.88);
+            color: var(--text-main);
+            text-align: center;
+            outline: none;
+            width: 80%;
+        }
+
+        html.dark-mode #peerIdInput {
+            background: rgba(34, 50, 65, 0.77);
+            color: var(--text-main-dark);
+        }
+
+        #connectButton {
+            background: linear-gradient(92deg, var(--accent), #08b4d4 80%);
+            color: #fff;
+            border: none;
+            border-radius: 60px;
+            font-family: "Rubik", sans-serif;
+            font-size: 1.07rem;
+            padding: 0.7rem 2.2rem;
+            cursor: pointer;
+        }
+
+        .file-list-container {
+            width: 100%;
+            max-height: 240px;
+            overflow-y: auto;
+            display: none;
+            scroll-behavior: smooth;
+        }
+
+        .fileList {
+            display: flex;
+            align-items: center;
+            border-radius: 10px;
+            padding: .73rem 1.1rem;
+            margin-bottom: .48rem;
+            background: var(--file-row-bg);
+            box-shadow: 0 2px 8px rgba(80, 100, 180, 0.10);
+            color: var(--text-main);
+            font-size: 1.08rem;
+            flex-wrap: wrap;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .file-details {
+            flex-grow: 1;
+            min-width: 0;
+            margin-left: 1.12rem;
+        }
+
+        .filename-container {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        .icon {
+            width: 29px;
+            height: 29px;
+            margin-right: 1.12rem;
+            font-size: 1.5em;
+        }
+
+        .filename {
+            display: inline-block;
+            color: var(--text-main);
+            font-size: 1.08rem;
+            white-space: nowrap;
+            animation: marquee-effect-large 12s linear infinite;
+        }
+
+        @keyframes marquee-effect-large {
+            0% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+
+            10% {
+                transform: translateX(-25%);
+                opacity: 0.9;
+            }
+
+            20% {
+                transform: translateX(-50%);
+                opacity: 0.7;
+            }
+
+            30% {
+                transform: translateX(-75%);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+
+            50% {
+                transform: translateX(200%);
+                opacity: 0;
+            }
+
+            60% {
+                transform: translateX(150%);
+                opacity: 0.5;
+            }
+
+            70% {
+                transform: translateX(100%);
+                opacity: 0.7;
+            }
+
+            80% {
+                transform: translateX(75%);
+                opacity: 0.8;
+            }
+
+            90% {
+                transform: translateX(50%);
+                opacity: 0.9;
+            }
+
+            100% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+        }
+
+        @keyframes marquee-effect-small {
+            0% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+
+            10% {
+                transform: translateX(-25%);
+                opacity: 0.9;
+            }
+
+            20% {
+                transform: translateX(-50%);
+                opacity: 0.7;
+            }
+
+            30% {
+                transform: translateX(-75%);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+
+            50% {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+
+            60% {
+                transform: translateX(100%);
+                opacity: 0.5;
+            }
+
+            70% {
+                transform: translateX(75%);
+                opacity: 0.7;
+            }
+
+            80% {
+                transform: translateX(50%);
+                opacity: 0.8;
+            }
+
+            90% {
+                transform: translateX(25%);
+                opacity: 0.9;
+            }
+
+            100% {
+                transform: translateX(0%);
+                opacity: 1;
+            }
+        }
+
+        .file-meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .file-size {
+            font-size: 1rem;
+            color: var(--text-sub);
+            text-align: left;
+        }
+
+        .file-progress-container {
+            width: 100%;
+            margin-top: 1.1rem;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            height: 8px;
+            position: relative;
+        }
+
+        .file-progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary);
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+
+        .file-progress-text {
+            position: absolute;
+            top: -22px;
+            left: 0;
+            font-size: 1rem;
+            color: var(--text-sub);
+        }
+
+        .action-buttons {
+            margin-top: 1rem;
+            width: 100%;
+            display: none;
+            gap: 1.1rem;
+        }
+
+        .action-buttons button {
+            padding: 1rem 2.1rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-family: "Rubik", sans-serif;
+            font-size: 1.09rem;
+            border: none;
+            cursor: pointer;
+            width: 49%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5em;
+            transition: transform .18s;
+        }
+
+        .action-buttons .accept {
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark) 90%);
+            color: #fff;
+        }
+
+        .action-buttons .accept:hover {
+            transform: translateY(-2px);
+        }
+
+        .action-buttons .reject {
+            background: linear-gradient(90deg, #ff5f69, #c1303e 80%);
+            color: #fff;
+        }
+
+        .action-buttons .reject:hover {
+            transform: translateY(-2px);
+        }
+
+        .backButton {
+            background: #e6eaf3;
+            color: var(--text-sub);
+            font-weight: 600;
+            font-family: "Rubik", sans-serif;
+            border: none;
+            border-radius: 50px;
+            padding: 0.68rem 2.1rem;
+            cursor: pointer;
+            font-size: .98rem;
+            margin-top: 2rem;
+        }
+
+        html.dark-mode .backButton {
+            background: rgba(34, 50, 65, 0.85);
+            color: var(--text-main-dark);
+        }
+
+        #darkModeButton {
+            position: absolute;
+            top: 21px;
+            right: 21px;
+            z-index: 10;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgb(255, 255, 255);
+            color: #35394f;
+            font-size: 1.34rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .18s;
+        }
+
+        #darkModeButton:hover {
+            transform: scale(1.1);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        html.dark-mode #darkModeButton {
+            background: #3b557b;
+            color: #ffe27a;
+        }
+
+        html.dark-mode #darkModeButton:hover {
+            background: #212936;
+            color: #fff;
+        }
+
+        #message {
+            position: fixed;
+            top: 50px;
+            left: 50%;
+            opacity: 0;
+            z-index: 1000;
+            color: var(--notification-text);
+            text-align: center;
+            padding: 1rem;
+            font-weight: 550;
+            border-radius: 50px;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transform: translate(-50%, -20px);
+            /* Start position for animation */
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            will-change: opacity, transform;
+        }
+
+        #message.show {
+            transform: translate(-50%, 0);
+            /* End position for animation */
+            opacity: 1;
+        }
+
+        #message.success {
+            background: var(--notification-bg-success);
+        }
+
+        #message.error {
+            background: var(--notification-bg-error);
+        }
+
+        #message.info {
+            background: var(--notification-bg-info);
+        }
+
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .dialog-box {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            margin: 1rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            font-size: 1rem;
+        }
+
+        html.dark-mode .dialog-box {
+            background: var(--bg-dark);
+            color: white;
+        }
+
+        .dialog-buttons button {
+            padding: 0.6rem 3rem 0.6rem 3rem;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: "Rubik", sans-serif;
+            font-size: 0.95rem;
+            transition: transform 0.18s, background 0.18s, color 0.18s;
+        }
+
+        .dialog-buttons button:hover {
+            transform: translateY(-3px) scale(1.03);
+        }
+
+        #confirmYes {
+            background: var(--danger);
+            color: #fff;
+            margin-right: 2rem;
+        }
+
+        #confirmYes:hover {
+            background: #e63946;
+        }
+
+        #confirmNo {
+            background: #ddd;
+            color: #333;
+            margin-left: 2rem;
+        }
+
+        #confirmNo:hover {
+            background: #bbb;
+            color: #111;
+        }
+
+        #peerIdInput.error {
+            border-color: var(--danger) !important;
+            animation: flashRed 0.6s ease 0s 2;
+        }
+
+        @keyframes flashRed {
+
+            0%,
+            100% {
+                border-color: var(--danger);
+                box-shadow: 0 0 6px var(--danger);
+            }
+
+            50% {
+                border-color: transparent;
+                box-shadow: none;
+            }
+        }
+
+        .download-file,
+        .delete-file {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: inherit;
+            font-size: 1rem;
+        }
+
+        .custom-checkbox {
+            display: none;
+        }
+
+        label[for="keepScreenOnCheckbox"] {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .toggle-switch {
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 12px;
+            position: relative;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        /* 4. Create the sliding thumb (the circle) */
+        .toggle-switch::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s ease-in-out;
+        }
+
+        /* 5. Define the "ON" state when the hidden checkbox is checked */
+        .custom-checkbox:checked+label[for="keepScreenOnCheckbox"] .toggle-switch {
+            background-color: var(--primary);
+        }
+
+        .custom-checkbox:checked+label[for="keepScreenOnCheckbox"] .toggle-switch::before {
+            transform: translateX(20px);
+            /* Move the thumb to the right */
+        }
+
+        /* 6. Dark Mode styles for the track */
+        html.dark-mode .toggle-switch {
+            background-color: #555;
+        }
+
+        .options-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1rem;
+            gap: 0.5rem;
+            color: var(--text-sub);
+        }
+
+        html.dark-mode .options-container {
+            color: var(--text-sub-dark);
+        }
+
+        @media (max-width: 600px) {
+            #container {
+                padding: 2rem 1.5rem;
+                gap: 1rem;
+                width: calc(100vw - 5rem);
+                min-width: auto;
+            }
+
+            h2 {
+                font-size: 1.1rem;
+                margin-top: 2.5rem;
+            }
+
+            #manual-entry {
+                flex-direction: column;
+                justify-content: center;
+            }
+
+            #peerIdInput {
+                font-size: 1rem;
+                flex-grow: 1;
+            }
+
+            #connectButton {
+                font-size: 1rem;
+                padding: 0.6rem 2rem;
+            }
+
+            .fileList {
+                padding: .6rem .8rem;
+            }
+
+            .filename {
+                font-size: 1rem;
+                animation: marquee-effect-small 8s linear infinite;
+            }
+
+            .file-size {
+                font-size: 0.85rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                gap: 0.8rem;
+                margin-top: 0.5rem;
+            }
+
+            .action-buttons button {
+                width: 100%;
+                font-size: 1rem;
+                padding: 0.8rem 0;
+            }
+
+            .backButton {
+                padding: 0.6rem 1.8rem;
+                font-size: 0.9rem;
+            }
+
+            #darkModeButton {
+                top: 1rem;
+                right: 1rem;
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
+
+            .dialog-box {
+                padding: 1rem;
+                font-size: 0.9rem;
+                max-width: 280px;
+            }
+
+            .dialog-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .dialog-buttons button {
+                width: 100%;
+                font-size: 0.9rem;
+                padding: 0.7rem;
+            }
+
+            #confirmYes {
+                margin-right: 0rem;
+            }
+
+            #confirmNo {
+                margin-left: 0rem;
+            }
+
+            #toggleDebugButton {
+                top: 1rem;
+                left: 1rem;
+                width: 40px;
+                height: 40px;
+                font-size: 1.1rem;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            #container {
+                max-width: 500px;
+            }
+
+            h2 {
+                font-size: 1.4rem;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            html {
+                font-size: 18px;
+            }
+
+            #container {
+                max-width: 550px;
+            }
+        }
+
+        @media (min-width: 2200px) {
+            html {
+                font-size: 22px;
+            }
+
+            #container {
+                max-width: 650px;
+            }
+        }
+
+
+        /* ADD THIS CSS BLOCK */
+        #debug-log-container {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid #555;
+            border-radius: 8px;
+            z-index: 9999;
+            color: #fff;
+            font-family: "Rubik", sans-serif;
+            font-size: 10px;
+            display: none;
+            flex-direction: column;
+        }
+
+        #debug-log-container.show {
+            display: flex;
+        }
+
+        #debug-log-header {
+            background: #222;
+            padding: 4px 8px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #clear-log-button {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #debug-log {
+            overflow-y: scroll;
+            padding: 5px;
+            flex-grow: 1;
+        }
+
+        .log-message {
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+            white-space: pre-wrap;
+        }
+
+        #inspect-state-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        #copy-log-button {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        #toggleDebugButton {
+            position: fixed;
+            top: 21px;
+            left: 21px;
+            z-index: 10;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgb(255, 255, 255);
+            color: #35394f;
+            font-size: 1.34rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .18s;
+        }
+
+        #toggleDebugButton:hover {
+            transform: scale(1.1);
+            background: #222d3a;
+            color: #fff;
+        }
+
+        html.dark-mode #toggleDebugButton {
+            background: #3b557b;
+            color: #7aff8c;
+        }
+
+        html.dark-mode #toggleDebugButton:hover {
+            background: #161b24;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="message"></div>
+
+    <main id="main-content">
+        <button id="toggleDebugButton" title="Toggle Debug Console"><i class="fa-solid fa-bug"></i></button>
+        <div id="container">
+
+            <button id="darkModeButton" title="Toggle dark mode"><i class="fa-solid fa-sun"></i></button>
+
+            <h2><i class="fa-solid fa-inbox"></i> Receive Files</h2>
+
+            <div id="manual-entry">
+                <input type="text" id="peerIdInput" maxlength="6" placeholder="Enter 6-digit code">
+                <button id="connectButton"><i class="fa-solid fa-link"></i> Connect</button>
+            </div>
+
+            <div id="incomingFilesList" class="file-list-container"></div>
+
+            <div class="action-buttons">
+                <button class="reject"><i class="fa-solid fa-circle-xmark"></i>Reject All</button>
+                <button class="accept"><i class="fa-solid fa-circle-check"></i>Accept All</button>
+            </div>
+
+            <div class="options-container">
+                <input type="checkbox" id="keepScreenOnCheckbox" class="custom-checkbox">
+                <label for="keepScreenOnCheckbox">Keep Screen On
+                    <span class="toggle-switch"></span>
+                </label>
+            </div>
+
+            <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
+
+        </div>
+    </main>
+
+    <div id="confirmDialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-box">
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="dialog-buttons">
+                <button id="confirmYes">Yes</button>
+                <button id="confirmNo">No</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="debug-log-container">
+        <div id="debug-log-header">
+            <span>On-Screen Debug Log</span>
+            <button id="inspect-state-button">Inspect State</button>
+            <button id="copy-log-button">Copy</button>
+            <button id="clear-log-button">Clear</button>
+        </div>
+        <div id="debug-log"></div>
+    </div>
+</body>
+
+</html>
+
+<script>
+    "use strict";
+    const h2 = document.querySelector("h2");
+    const manualEntryDiv = document.getElementById("manual-entry");
+    const peerIdInput = document.getElementById("peerIdInput");
+    const connectButton = document.getElementById("connectButton");
+    const incomingFilesList = document.getElementById("incomingFilesList");
+    const actionButtons = document.querySelector('.action-buttons');
+    const acceptButton = actionButtons.querySelector('.accept');
+    const rejectButton = actionButtons.querySelector('.reject');
+    const backButton = document.querySelector('.backButton');
+    const darkModeButton = document.getElementById("darkModeButton");
+    const message = document.getElementById("message");
+    const body = document.body;
+    const overlay = document.getElementById("confirmDialog");
+    const msg = document.getElementById("confirmMessage");
+    const yesBtn = document.getElementById("confirmYes");
+    const noBtn = document.getElementById("confirmNo");
+    const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    body.classList.add('fade-in');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const peerId = urlParams.get('peerId');
+
+    let incomingFiles = {}; // Stores metadata and chunks
+    let downloadableBlobs = {}; // Stores completed file blobs ready for download
+    let connection = null;
+    let peer = null;
+    let currentReceivingFile = null;
+    let isReconnecting = false;
+    const maxRetries = 4;
+    let retryCount = 0;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 3;
+    let fileQueue = [];
+    let db; // this will hold database connection
+    let chunkTimeout = null;
+    const CHUNK_TIMEOUT_DURATION = 30000;
+    const SERVER_URL = 'https://p2p-file-transfer-app-jdx6.onrender.com';
+
+    if (peerId) {
+        startConnection(peerId);
+    } else {
+        h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
+        manualEntryDiv.style.display = 'flex';
+
+        peerIdInput.focus();
+
+        setTimeout(() => {
+            peerIdInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 200);
+
+        connectButton.addEventListener('click', async () => {
+            const enteredId = peerIdInput.value.trim();
+            if (/^\d{6}$/.test(enteredId)) {
+                connectButton.disabled = true;
+                h2.innerHTML = `<i class="fa-solid fa-link"></i> Verifying Code <i class="fa fa-check-circle"></i>`;
+                manualEntryDiv.style.display = "none";
+                try {
+                    const response = await fetch(`${SERVER_URL}/check-id/${enteredId}`);
+                    if (!response.ok) throw new Error("Server not reachable");
+                    const data = await response.json();
+
+                    if (data.idExists) {
+                        startConnection(enteredId);
+                    } else {
+                        markInputError("Enter a correct 6 digit peer id");
+                        h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
+                        manualEntryDiv.style.display = 'flex';
+                    }
+                } catch (error) {
+                    console.error("Failed to verify ID:", error);
+                    showMessage("Could not connect to the server. Please ensure the backend is running.", "error");
+                    h2.innerHTML = '<i class="fa-solid fa-keyboard"></i> Enter Sender\'s Code';
+                    manualEntryDiv.style.display = 'flex';
+                    connectButton.disabled = false;
+                }
+            } else {
+                markInputError("Enter a correct 6 digit peer id");
+                return;
+            }
+        });
+    }
+
+    function startConnection(senderId) {
+        openDatabase();
+        peer = new Peer({
+            host: 'p2p-file-transfer-app-jdx6.onrender.com',
+            port: 443,
+            path: '/peerjs/myapp',
+            secure: true,
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+        });
+
+        peer.on('open', id => {
+            h2.innerHTML = `<i class="fa-solid fa-link"></i> Connecting to sender <i class="fa fa-check-circle"></i>`;
+            attemptConnection();
+        });
+        peer.on('error', err => {
+            if (Object.keys(incomingFiles).length > 0) {
+                console.warn("Non-fatal PeerJS error ignored during transfer:", err);
+                return; // file transferring is active so don't show any connection error from signaling server
+            }
+            if (err.type === 'peer-unavailable' && retryCount < maxRetries) {
+                retryCount++;
+                h2.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Sender not found. Retrying... (${retryCount}/${maxRetries})`;
+                setTimeout(attemptConnection, 2000);
+            } else {
+                alert('Could not connect to peer. Please check the code and try again.');
+                h2.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Connection Failed';
+            }
+        });
+
+        function attemptConnection() {
+            if (connection && connection.open) {
+                connection.close(); // 🔑 close any old connection before retrying
+            }
+
+            connection = peer.connect(senderId);
+
+            connection.on('open', () => {
+                h2.innerHTML = `Connected <i class="fa fa-check-circle" style="color:var(--primary);"></i> Waiting for files <i class="fas fa-hourglass fa-spin"></i>`;
+                console.log("Connection established with sender.");
+                showMessage("Connected to sender!", "success");
+
+                connection.peerConnection.onconnectionstatechange = () => {
+                    const state = connection.peerConnection.connectionState;
+                    console.log("Connection state changed:", state);
+
+                    if (state === "disconnected" && !isReconnecting) {
+                        isReconnecting = true;
+                        reconnectAttempts++;
+                        showMessage(`Connection lost. Attempt ${reconnectAttempts} of ${maxReconnectAttempts}...`, "info");
+
+                        attemptConnection();
+
+                        setTimeout(() => { isReconnecting = false; }, 3000);
+
+                        if (reconnectAttempts >= maxReconnectAttempts) {
+                            showMessage("Unable to reconnect after 3 attempts. Redirecting...", "error");
+                            setTimeout(() => navigateWithAnimation("receiver.html"), 1500);
+                        }
+                    }
+                    else if (state === "failed") {
+                        showMessage("Connection failed permanently. Redirecting...", "error");
+                        setTimeout(() => navigateWithAnimation("receiver.html"), 1500);
+                    }
+                    else if (state === "connected") {
+                        reconnectAttempts = 0;
+                        isReconnecting = false;
+                        showMessage("Reconnected successfully!", "success");
+                    }
+                };
+            });
+            connection.on('data', handleData);
+            connection.on('close', () => {
+                showMessage("Sender has disconnected.", "info");
+                resetState();
+                navigateWithAnimation("index.html");
+            });
+        }
+    }
+
+    function handleData(message) {
+        const { type, payload } = message;
+        switch (type) {
+            case 'start':
+                handleFileStart(payload);
+                break;
+            case 'chunk':
+                handleFileChunk(payload);
+                break;
+            case 'end':
+                handleFileEnd(payload);
+                break;
+            case 'cancel':
+                showMessage("Sender cancelled the transfer.", "error");
+                resetState();
+                break;
+            case 'skip':
+                handleSkippedFile(payload);
+                break;
+            case 'ping':
+                if (connection && connection.open) {
+                    connection.send({ type: 'pong' });
+                }
+                break;
+        }
+    }
+
+    function handleFileStart(payload) {
+        logToScreen(`--- handleFileStart ENTERED for: ${payload.name} ---`);
+        logToScreen(`BEFORE logic: currentReceivingFile is ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+
+        let displayName = payload.name;
+
+        // if a file with this name already exists
+        if (incomingFiles[payload.name]) {
+            const baseName = payload.name.replace(/\.[^/.]+$/, ""); // filename without any extension
+            const extension = payload.name.split(".").pop();
+            displayName = `${baseName}_${Date.now()}.${extension}`;
+        }
+
+        const completeFileObject = {
+            name: displayName,
+            metadata: payload,
+            receivedSize: 0
+        };
+        incomingFiles[displayName] = completeFileObject;
+        completeFileObject.originalName = payload.name;
+
+        const fileElement = createFileElement(completeFileObject);
+        incomingFilesList.appendChild(fileElement);
+
+        incomingFilesList.scrollTop = incomingFilesList.scrollHeight;
+
+        if (currentReceivingFile) {
+            fileQueue.push(payload);
+            const progressText = fileElement.querySelector('.file-progress-text');
+            progressText.textContent = 'Queued';
+            logToScreen(`QUEUED file: ${payload.name}`);
+        } else {
+            // If we are free, start the transfer immediately
+            currentReceivingFile = payload;
+            if (chunkTimeout) clearTimeout(chunkTimeout); // Clear any old timer
+            chunkTimeout = setTimeout(handleFileTimeout, CHUNK_TIMEOUT_DURATION); // Start new timer
+            h2.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Incoming Files';
+            incomingFilesList.style.display = 'block';
+            actionButtons.style.display = 'flex';
+            logToScreen(`STARTED file: ${payload.name}`);
+        }
+
+        logToScreen(`AFTER logic: currentReceivingFile is now ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+        logToScreen(`Queue length is now: ${fileQueue.length}`);
+    }
+
+    async function handleFileChunk(payload) {
+        if (chunkTimeout) clearTimeout(chunkTimeout);
+        chunkTimeout = setTimeout(handleFileTimeout, CHUNK_TIMEOUT_DURATION);
+
+        const file = Object.values(incomingFiles).find(f => f.originalName === payload.name);
+        if (!file) return;
+
+        file.receivedSize += payload.data.byteLength;
+
+        const percent = Math.round((file.receivedSize / file.metadata.size) * 100);
+        const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+        if (fileUiElement) {
+            const progressBar = fileUiElement.querySelector('.file-progress-bar');
+            const progressText = fileUiElement.querySelector('.file-progress-text');
+            progressBar.style.width = percent + '%';
+            progressText.textContent = percent + '%';
+        }
+
+        const chunkToSave = {
+            fileName: payload.name,
+            index: payload.index,
+            data: payload.data
+        };
+
+        try {
+            // wait for saving to database
+            await saveChunk(chunkToSave);
+
+            // Send the acknowledgement immediately.
+            connection.send({ type: "ack", name: payload.name, index: payload.index });
+
+            console.log(`RECEIVER: Sending ack for ${payload.name}, chunk #${payload.index}`);
+        } catch (error) {
+            console.error("Failed to save chunk to DB.", error);
+            showMessage("Chunk save failed", "error");
+        }
+    }
+
+    async function processQueue() {
+        logToScreen(`--- processQueue ENTERED ---`);
+        logToScreen(`BEFORE logic: currentReceivingFile is ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+        logToScreen(`Queue length is: ${fileQueue.length}`);
+
+        if (currentReceivingFile || fileQueue.length === 0) {
+            logToScreen(`Queue is empty or a file is already being processed.`);
+            return;
+        }
+
+        const nextPayload = fileQueue.shift();
+        logToScreen(`Processing next file from queue: "${nextPayload.name}"`);
+        currentReceivingFile = nextPayload;
+
+        try {
+            const file = incomingFiles[nextPayload.name];
+            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(nextPayload.name)}"]`);
+            if (file && fileUiElement && file.receivedSize === 0) {
+                const progressText = fileUiElement.querySelector('.file-progress-text');
+                const progressBar = fileUiElement.querySelector('.file-progress-bar');
+                progressText.textContent = '0%';
+                progressBar.style.width = '0%';
+            }
+
+        } catch (error) {
+            logToScreen(`!!!! CRASH in processQueue: ${error.message} !!!!`);
+            console.error("Queue processing error:", error);
+            handleFileTimeout(nextPayload.name);
+
+        } finally {
+            logToScreen(`AFTER logic: currentReceivingFile reset to null`);
+            // immediately try next file in queue
+            processQueue();
+        }
+
+        if (chunkTimeout) clearTimeout(chunkTimeout);
+        chunkTimeout = setTimeout(() => {
+            if (currentReceivingFile) {
+                handleFileTimeout();
+            }
+        }, CHUNK_TIMEOUT_DURATION);
+    }
+
+    function handleFileTimeout() {
+        if (!currentReceivingFile) return;
+
+        const failedFileName = currentReceivingFile.name;
+        currentReceivingFile = null;
+
+        logToScreen(`--- CHUNK TIMEOUT for ${failedFileName} ---`);
+        showMessage(`Transfer for "${failedFileName}" timed out.`, "error");
+
+        const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(failedFileName)}"]`);
+        if (fileUiElement) {
+            const progressText = fileUiElement.querySelector('.file-progress-text');
+            progressText.textContent = "Timed Out";
+            fileUiElement.style.opacity = '0.5';
+        }
+
+        if (chunkTimeout) {
+            clearTimeout(chunkTimeout);
+            chunkTimeout = null;
+        }
+        processQueue();
+    }
+
+    async function handleFileEnd(payload) {
+        if (!currentReceivingFile || currentReceivingFile.name !== payload.name) {
+            logToScreen(`WARNING: Received a late/unexpected 'end' message for ${payload.name}. Ignoring it.`);
+            return; // Exit the function immediately.
+        }
+
+        logToScreen(`--- handleFileEnd ENTERED for: ${payload.name} ---`);
+        if (chunkTimeout) clearTimeout(chunkTimeout);
+        chunkTimeout = null;
+
+        const file = incomingFiles[payload.name];
+        if (!file) {
+            logToScreen(`ERROR: handleFileEnd called for unknown file: ${payload.name}`);
+            return;
+        }
+
+        try {
+            const blob = await getChunksAndAssembleFile(payload);
+            downloadableBlobs[file.name] = blob;
+
+            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+            if (fileUiElement) {
+                const progressText = fileUiElement.querySelector('.file-progress-text');
+                progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
+            }
+
+            deleteFileChunks(payload.name);
+
+        } catch (error) {
+            console.error("Failed to assemble file from DB:", error);
+            showMessage("Error processing received file.", "error");
+        } finally {
+            logToScreen(`In finally: Setting currentReceivingFile to null.`);
+            currentReceivingFile = null;
+            logToScreen(`In finally: Calling processQueue() with a short delay.`);
+            setTimeout(processQueue, 100);
+        }
+    }
+
+    function handleSkippedFile(payload) {
+        const file = Object.values(incomingFiles).find(f => f.originalName === payload.name);
+        if (!file) return; // File doesn't exist, so there's nothing to do.
+
+        // Check if the skipped file was the one actively being received
+        const wasCurrentlyReceiving = currentReceivingFile && currentReceivingFile.name === payload.name;
+
+        // Clean up all internal state records immediately
+        delete incomingFiles[file.originalName];
+        delete downloadableBlobs[file.name];
+        fileQueue = fileQueue.filter(f => f.name !== payload.name);
+
+        const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
+        if (fileUiElement) {
+            fileUiElement.style.opacity = 0;
+            fileUiElement.style.transition = "opacity 0.3s ease";
+            setTimeout(() => {
+                fileUiElement.remove();
+                // After removing, check if the list container is now empty
+                if (incomingFilesList.children.length === 0) {
+                    actionButtons.style.display = 'none';
+                    incomingFilesList.style.display = 'none';
+                    h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                }
+            }, 300);
+        }
+
+        // If the active download was cancelled, we must start the next file in the queue
+        if (wasCurrentlyReceiving) {
+            currentReceivingFile = null;
+            if (chunkTimeout) clearTimeout(chunkTimeout);
+            processQueue();
+        }
+
+        showMessage(`"${file.name}" transfer cancelled by sender`, "info");
+    }
+
+    function createFileElement(file) {
+        const div = document.createElement("div");
+        div.className = "fileList";
+        div.dataset.fileName = file.originalName || file.metadata.name;
+
+        div.innerHTML = `
+                <div class="file-info">
+                    <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
+                    <div class="file-details">
+                        <div class="filename-container">
+                            <span class="filename" title="${file.name}">${file.name}</span>
+                        </div>
+                        <div class="file-meta-row">
+                            <span class="file-size">${formatFileSize(file.metadata.size)}</span>
+                            <button class="download-file" title="Download this file"><i class="fa-solid fa-download" style="color:var(--primary);"></i></button>
+                            <button class="delete-file" title="Delete this file"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="file-progress-container">
+                    <span class="file-progress-text">0%</span>
+                    <div class="file-progress-bar"></div>
+                </div>
+            `;
+
+        const deleteBtn = div.querySelector(".delete-file");
+        deleteFile(deleteBtn, file, div);
+
+        const downloadBtn = div.querySelector(".download-file");
+        downloadFile(downloadBtn, file.metadata.name, file.name);
+
+        return div;
+    }
+
+    function deleteFile(deleteBtn, file, div) {
+        deleteBtn.addEventListener("click", () => {
+            showConfirm(`Delete File "${file.name}" ?`, () => {
+                const originalFileName = file.metadata.name;
+                const wasCurrentlyReceiving = currentReceivingFile && currentReceivingFile.name === originalFileName;
+
+                // --- THE REAL FIX ---
+
+                // STEP 1: Clean up the receiver's internal state FIRST. This is the crucial change.
+                // This ensures we are ready for the next file before the sender can act.
+                delete downloadableBlobs[file.name];
+                delete incomingFiles[originalFileName];
+                fileQueue = fileQueue.filter(f => f.name !== originalFileName);
+
+                if (wasCurrentlyReceiving) {
+                    currentReceivingFile = null;
+                    if (chunkTimeout) clearTimeout(chunkTimeout);
+                }
+
+                // STEP 2: NOW that our state is clean, tell the sender to skip.
+                if (connection && connection.open) {
+                    connection.send({ type: "skip", payload: { name: originalFileName } });
+                }
+
+                // STEP 3: Clean up the UI.
+                div.style.transition = "opacity 0.3s ease";
+                div.style.opacity = 0;
+                setTimeout(() => {
+                    div.remove();
+                    if (incomingFilesList.children.length === 0) {
+                        actionButtons.style.display = 'none';
+                        incomingFilesList.style.display = 'none';
+                        h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+                    }
+                }, 300);
+
+                // STEP 4: Process any other files that were already in the queue.
+                processQueue();
+
+                showMessage(`File "${file.name}" deleted`, "info");
+            });
+        });
+    }
+
+    function downloadFile(downloadBtn, originalName, displayName) {
+        downloadBtn.addEventListener("click", () => {
+            const blob = downloadableBlobs[originalName];
+            if (!blob) {
+                showMessage("File not ready yet!", "info");
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = displayName; // user-friendly filename
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+
+            showMessage(`File "${displayName}" downloaded`, "success");
+        });
+    }
+
+
+    acceptButton.addEventListener('click', () => {
+        acceptButton.disabled = true;
+        rejectButton.disabled = true;
+        acceptButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading';
+
+        const rows = incomingFilesList.querySelectorAll(".fileList");
+
+        let removedCount = 0;
+        const total = rows.length;
+
+        rows.forEach((row) => {
+            row.style.transition = "opacity 0.3s ease";
+            row.style.opacity = "0";
+
+            setTimeout(() => {
+                row.remove();
+                removedCount++;
+
+                if (removedCount === total) {
+                    resetState(); // run only after all are gone
+                }
+            }, 300);
+        });
+
+        setTimeout(() => {
+
+            for (const name in downloadableBlobs) {
+                const blob = downloadableBlobs[name];
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            }
+
+            showMessage("Files accepted and downloaded!", "success");
+            resetState();
+        }, 300);
+    });
+
+    function disconnectTransfer() {
+        if (connection && connection.open) {
+            connection.send({ type: "cancel" }); // Notify sender
+            connection.close();
+        }
+        resetState();
+    }
+
+    rejectButton.addEventListener('click', () => {
+        showConfirm("Remove all files ?", () => {
+            resetState();
+            showMessage("Files rejected!", "error");
+
+            if (connection && connection.open) {
+                connection.send({ type: "rejectAll" });
+            }
+        });
+    });
+
+    function resetState() {
+        incomingFiles = {};
+        downloadableBlobs = {};
+        actionButtons.style.display = 'none';
+        incomingFilesList.style.display = 'none';
+        incomingFilesList.innerHTML = "";
+        h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+    }
+
+    function markInputError(msgText) {
+        peerIdInput.classList.remove('error'); // reset animation
+        void peerIdInput.offsetWidth; // recalculate the width of peerIdInput
+        peerIdInput.classList.add('error');
+        peerIdInput.focus();
+        connectButton.disabled = true; // disable's button while flashing
+        showMessage(msgText, "error");
+
+        setTimeout(() => {
+            connectButton.disabled = false;
+            connectButton.innerHTML = '<i class="fa-solid fa-link"></i> Connect';
+        }, 1200);
+    }
+
+    function openDatabase() {
+        // request is a type of ticket
+        // indexedDB is a type of master key maker built into every browser
+        // we made a request to master key maker to open a storage box
+        // fileStorageDB is the name of our personal storage box we want to open
+        // 1 is version number or 1st edition of our storage box
+        const request = indexedDB.open("fileStorageDB", 1);
+
+        // we are telling our request ticket if our storage box or database is new and empty we need to set it up
+        request.onupgradeneeded = function (event) {
+            let database = event.target.result; // browser gives us new empty database
+
+            // builds a shelf like ObjectStore inside our database to hold file chunks
+            database.createObjectStore("fileChunks", { autoIncrement: true });
+        }
+        request.onsuccess = function (event) {
+            db = event.target.result; // browser gives us sucessful connection
+            console.log('Database is open and ready to be used.');
+
+            try {
+                const transaction = db.transaction(["fileChunks"], "readwrite");
+                const store = transaction.objectStore("fileChunks");
+                store.clear(); // This command empties the storage
+                console.log("Cleared old file chunks from previous sessions.");
+            } catch (error) {
+                console.error("Could not clear old chunks:", error);
+            }
+        }
+        request.onerror = function (event) {
+            console.log('Database error ', event.target.error);
+        }
+    }
+
+    // helps in saving a single chunk to database
+    function saveChunk(chunk) {
+        return new Promise(function (resolve, reject) {
+            const transaction = db.transaction(["fileChunks"], "readwrite");
+            const store = transaction.objectStore("fileChunks");
+            const request = store.add(chunk);
+
+            // When the save is successful, the promise is resolved.
+            request.onsuccess = function () {
+                resolve();
+            };
+
+            // If there's an error, the promise is rejected.
+            request.onerror = function (event) {
+                console.error("Error saving chunk to DB:", event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    function getChunksAndAssembleFile(payload) {
+        return new Promise(function (resolve, reject) {
+            const fileName = payload.name;
+            const fileType = payload.type;
+
+            const transaction = db.transaction(["fileChunks"], "readonly");
+            const store = transaction.objectStore("fileChunks");
+            const chunks = [];
+
+            const request = store.openCursor();
+
+            request.onsuccess = function (event) {
+                const cursor = event.target.result;
+                if (cursor) {
+                    if (cursor.value.fileName === fileName) {
+                        chunks.push(cursor.value);
+                    }
+                    cursor.continue();
+                } else {
+                    if (chunks.length === 0) {
+                        reject(new Error(`No chunks found for ${fileName}`));
+                        return;
+                    }
+
+                    chunks.sort((a, b) => a.index - b.index);
+
+                    const finalData = chunks.map(c => c.data);
+                    const fileBlob = new Blob(finalData, { type: fileType });
+
+                    const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(fileName)}"]`);
+                    if (fileUiElement) {
+                        const progressText = fileUiElement.querySelector('.file-progress-text');
+                        const progressBar = fileUiElement.querySelector('.file-progress-bar');
+                        progressText.textContent = '100%';
+                        progressBar.style.width = '100%';
+                    }
+
+                    resolve(fileBlob);
+                }
+            };
+
+            request.onerror = function (event) {
+                reject(new Error("IndexedDB error while assembling file"));
+            };
+        });
+    }
+
+
+    function deleteFileChunks(fileName) {
+        const transaction = db.transaction(["fileChunks"], "readwrite");
+        const store = transaction.objectStore("fileChunks");
+
+        const request = store.openCursor();
+        request.onsuccess = function (event) {
+            const cursor = event.target.result;
+            if (cursor) {
+                if (cursor.value.fileName === fileName) {
+                    cursor.delete(); // Delete the matching chunk.
+                }
+                cursor.continue();
+            }
+        };
+    }
+
+    backButton.addEventListener('click', () => {
+        if (connection && connection.open) {
+            showConfirm("Do you want to disconnect ?", () => {
+                if (Object.keys(incomingFiles).length > 0) { //looks at an object and returns a list of all its keys.
+                    disconnectTransfer();
+                }
+                // remove the listener so the browser doesn't show its own pop-up
+                window.removeEventListener('beforeunload', handleBeforeUnload);
+                navigateWithAnimation("receiver.html");
+            });
+        } else {
+            navigateWithAnimation("index.html");
+        }
+    });
+
+    peerIdInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            connectButton.click();
+        }
+    });
+
+    peerIdInput.addEventListener("input", () => {
+        peerIdInput.classList.remove("error");
+    });
+
+    initializeDarkMode();
+    pageShow();
+
+    keepScreenOnCheckbox.addEventListener('change', () => {
+        toggleWakeLock(keepScreenOnCheckbox.checked);
+    });
+
+    // automatically release the lock if the connection closes
+    window.addEventListener('beforeunload', () => {
+        toggleWakeLock(false);
+    });
+
+
+
+    const toggleDebugButton = document.getElementById('toggleDebugButton');
+    const debugLogContainer = document.getElementById('debug-log-container');
+    toggleDebugButton.addEventListener('click', () => {
+        debugLogContainer.classList.toggle('show');
+    });
+    function logToScreen(message) {
+        const logContainer = document.getElementById('debug-log');
+        if (!logContainer) return;
+        const msgElement = document.createElement('div');
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+        msgElement.textContent = `[${timestamp}] ${message}`;
+        msgElement.className = 'log-message';
+        logContainer.appendChild(msgElement);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    const inspectStateButton = document.getElementById('inspect-state-button');
+
+    inspectStateButton.addEventListener('click', () => {
+        logToScreen("--- STATE INSPECTION ---");
+        logToScreen(`currentReceivingFile active: ${!!currentReceivingFile}`);
+        logToScreen(`currentReceivingFile: ${currentReceivingFile ? currentReceivingFile.name : 'null'}`);
+        logToScreen(`incomingFiles object has ${Object.keys(incomingFiles).length} keys.`);
+
+        // check the UI visibility state
+        const listStyle = window.getComputedStyle(incomingFilesList).display;
+        logToScreen(`incomingFilesList is currently: ${listStyle}`);
+    });
+
+    const copyLogButton = document.getElementById('copy-log-button');
+
+    copyLogButton.addEventListener('click', () => {
+        const logContainer = document.getElementById('debug-log');
+        const logText = logContainer.innerText;
+        copyText(logText);
+    });
+
+    document.getElementById('clear-log-button').addEventListener('click', () => {
+        document.getElementById('debug-log').innerHTML = '';
+    });
+
+</script>
+</body>
+
+</html>
