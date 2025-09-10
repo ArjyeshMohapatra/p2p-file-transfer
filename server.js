@@ -19,7 +19,7 @@ app.use(
     helmet({
         contentSecurityPolicy: {
             directives: {
-                ...helmet.contentSecurity - Policy.getDefaultDirectives(),
+                ...helmet.contentSecurityPolicy.getDefaultDirectives(),
                 "script-src": [
                     "'self'",
                     "'unsafe-inline'", // Allows all your inline scripts to run
