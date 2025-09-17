@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>P2P File Transfer - Sending</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <script src="shared.js"></script>
+    <link rel="stylesheet" href="shared.css">
+    <link rel="stylesheet" href="sender.css">
+</head>
+
+<body>
+    <input type="file" id="inputFile" multiple style="display:none">
+
+    <div id="message"></div>
+
+    <div id="container">
+
+        <button id="darkModeButton" title="Toggle dark mode" aria-label="Toggle dark mode"><i
+                class="fa-solid fa-sun"></i></button>
+
+        <div id="connection-info">
+
+            <h2><i class="fa-solid fa-spinner fa-spin"></i> Getting Online...</h2>
+
+            <div id="code-container">
+                <div id="peerIdDisplay"></div>
+                <div id="codeButtons">
+                    <button id="copyIdButton" title="Copy code"><i class="fa-solid fa-copy"></i></button>
+                    <button id="shareIdButton" title="Share code"><i class="fa-solid fa-share-nodes"></i></button>
+                </div>
+            </div>
+
+            <div id="qrcode" class="glow-qr"></div>
+
+        </div>
+
+        <div id="file-selection-area">
+
+            <label for="inputFile" id="file-label"><i class="fa-solid fa-folder-open"></i> Choose or Drag Files</label>
+            <div id="fileChoosen"></div>
+            <div id="fileSummary"></div>
+
+            <div class="action-buttons">
+                <button id="clearAllButton"><i class="fa-solid fa-trash"></i> Clear All</button>
+                <button id="sendButton" disabled><i class="fa-solid fa-paper-plane"></i> Send Files</button>
+            </div>
+
+            <div class="options-container">
+                <input type="checkbox" id="keepScreenOnCheckbox" class="custom-checkbox">
+                <label for="keepScreenOnCheckbox">Keep Screen On
+                    <span class="toggle-switch"></span>
+                </label>
+            </div>
+        </div>
+
+        <button class="backButton"><i class="fa-solid fa-chevron-left"></i> Back</button>
+
+    </div>
+
+    <div id="confirmDialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-box">
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="dialog-buttons">
+                <button id="confirmYes">Yes</button>
+                <button id="confirmNo">No</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        "use strict";
+        const container = document.getElementById("container");
+        const connectionInfoDiv = document.getElementById("connection-info");
+        const h2_connection = document.querySelector('#connection-info h2');
+        const peerIdDisplay = document.getElementById('peerIdDisplay');
+        const qrCodeContainer = document.getElementById('qrcode');
+        const fileSelectionArea = document.getElementById('file-selection-area');
+        const inputtedFiles = document.getElementById("inputFile");
+        const filesDisplayArea = document.getElementById("fileChoosen");
+        const fileSummary = document.getElementById("fileSummary");
+        const clearAllButton = document.getElementById("clearAllButton");
+        const sendButton = document.getElementById("sendButton");
+        const backButton = document.querySelector('.backButton');
+        const darkModeButton = document.getElementById("darkModeButton");
+        const message = document.getElementById("message");
+        const codeContainer = document.getElementById('code-container');
+        const copyIdButton = document.getElementById('copyIdButton');
+        const body = document.body;
+        const overlay = document.getElementById("confirmDialog");
+        const msg = document.getElementById("confirmMessage");
+        const yesBtn = document.getElementById("confirmYes");
+        const noBtn = document.getElementById("confirmNo");
+        const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
+        const shareIdButton = document.getElementById('shareIdButton');
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        body.classList.add('fade-in');
+
+        let peer = null;
+        let connection = null;
+        let currentFile = null;
+        let selectedFiles = [];
+        let isTransferring = false; // Flag to control the transfer loop
+        let isReconnecting = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 3;
+        let pingingInterval = null;
+
+        const SERVER_URL = '';
+
+        async function initPeer() {
+            let peerId;
+
+            try {
+                peerId = await generateNewPeerId(3);
+            } catch (error) {
+                console.error("Failed to get a peer ID:", error);
+                showMessage("Server not running. Please try again in a moment.", "error");
+                setTimeout(() => {
+                    navigateWithAnimation("index.html");
+                }, 1500);
+                return;
+            }
+
+            // null -> object's state isnt restored
+            // '' -> no new page title
+            // history.replaceState(null, '', 'sender.html');
+            history.replaceState(null, '', `sender.html?peerId=${peerId}`);
+
+            peer = new Peer(peerId, {
+                host: window.location.hostname,
+                port: 443,
+                path: '/peerjs/myapp',
+                secure: true,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                        { urls: 'stun:stun.services.mozilla.com' }
+                    ]
+                }
+            });
+
+            peer.on('open', function (id) {
+                h2_connection.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Ready! Share this code:';
+                peerIdDisplay.textContent = id;
+                codeContainer.style.display = 'flex';
+
+                const receiverUrl = window.location.href.replace(/[^/]*$/, '') + 'receiver.html?peerId=' + id;
+                new QRCode(qrCodeContainer, {
+                    text: receiverUrl,
+                    width: 160,
+                    height: 160,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                qrCodeContainer.style.display = 'block';
+
+                copyIdButton.addEventListener('click', function () { copyText(id); });
+
+                if (navigator.share) {
+                    shareIdButton.style.display = 'flex'; // Show the button
+
+                    shareIdButton.addEventListener('click', async () => {
+                        try {
+                            await navigator.share({
+                                text: `P2P File Transfer Code\n\nUse this link to receive files from me!\n\nCode: ${id}\n\n${receiverUrl}`
+                            });
+                            console.log('Share was successful.');
+                        } catch (error) {
+                            console.error('Error sharing:', error);
+                        }
+                    });
+                }
+            });
+
+            peer.on('connection', function (conn) {
+                connection = conn;
+
+                h2_connection.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting to Receiver <i class="fa fa-check-circle"></i>';
+                qrCodeContainer.style.display = 'none';
+                codeContainer.style.display = 'none';
+
+                connection.on('open', () => {
+                    h2_connection.innerHTML = '<h2><i class="fa-solid fa-link"></i> Connected to Receiver <i class="fa fa-check-circle" style="color:var(--primary);"></i></h2>';
+                    connectionInfoDiv.classList.add('connected-state');
+
+                    fileSelectionArea.classList.add('visible');
+
+                    console.log("Receiver connected.");
+                    showMessage("Receiver connected!", "success");
+
+                    connection.peerConnection.onconnectionstatechange = () => {
+                        const state = connection.peerConnection.connectionState;
+                        console.log("Connection state changed:", state);
+
+                        if (state === "disconnected" && !isReconnecting) {
+                            isReconnecting = true;
+                            reconnectAttempts++;
+                            showMessage(`Connection lost. Attempt ${reconnectAttempts} of ${maxReconnectAttempts}...`, "info");
+
+                            // close previous connection without waiting for receiver
+                            if (connection && connection.open) {
+                                connection.close();
+                            }
+
+                            setTimeout(() => { isReconnecting = false; }, 3000);
+
+                            if (reconnectAttempts >= maxReconnectAttempts) {
+                                showMessage("Unable to reconnect after 3 attempts. Redirecting...", "error");
+                                setTimeout(() => navigateWithAnimation("sender.html"), 1500);
+                            }
+                        }
+                        else if (state === "failed") {
+                            showMessage("Connection failed permanently. Redirecting...", "error");
+                            setTimeout(() => navigateWithAnimation("sender.html"), 1500);
+                        }
+                        else if (state === "connected") {
+                            reconnectAttempts = 0;
+                            isReconnecting = false;
+                            showMessage("Reconnected successfully!", "success");
+                        }
+                    };
+                    if (pingingInterval) clearInterval(pingingInterval); // removes any old pinges
+                    pingingInterval = setInterval(() => {
+                        if (connection && connection.open) {
+                            connection.send({ type: "ping" });
+                        }
+                    }, 1000); // sends ping to receiver at every 1 second interval
+                });
+
+                conn.on('data', function (data) {
+                    if (data.type === 'pong') {
+                        // Pong received, we know the connection is healthy. No action needed.
+                        return;
+                    }
+
+                    console.log('SENDER (Master Spy): Received a message ->', data);
+
+                    if (data.type === 'skip') {
+                        const fileName = data.payload.name;
+                        console.log('Receiver skipped file:', fileName);
+                        const fileObj = selectedFiles.find(f => f.name === fileName);
+                        if (fileObj) fileObj.skippedByReceiver = true;
+                    }
+                    if (data.type === 'rejectAll') {
+                        showMessage('Receiver rejected all files.', 'error');
+                        isTransferring = false;
+                    }
+                    if (data.type === 'cancel') {
+                        cancelTransfer();
+                        showMessage('Receiver rejected the transfer.', 'error');
+                        setTimeout(function () {
+                            navigateWithAnimation("sender.html");
+                        }, 1000);
+                    }
+                });
+
+                conn.on('close', function () {
+                    if (pingingInterval) clearInterval(pingingInterval);
+                    showMessage('Receiver has disconnected.', 'info');
+                    isTransferring = false;
+                    resetUI();
+                    setTimeout(function () {
+                        body.classList.add('fade-out');
+                        setTimeout(function () {
+                            window.location.href = 'index.html';
+                        }, 350);
+                    }, 1000);
+                });
+            });
+
+            peer.on('error', function (err) {
+                if (err.type === 'network' && connection && connection.open) {
+                    console.warn('Signaling server disconnected.');
+                    return;
+                }
+                alert('An error occurred with PeerJS: ' + err);
+                console.error(err);
+            });
+        }
+
+        initPeer();
+
+        async function generateNewPeerId(retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(`${SERVER_URL}/generate-id`);
+                    if (!response.ok) throw new Error('Server not responding');
+                    const data = await response.json();
+                    return data.id;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    await new Promise(r => setTimeout(r, 1000)); // wait 1s before retry
+                }
+            }
+        }
+
+        function updateSummary() {
+            const activeFiles = selectedFiles.filter(file => !file.skippedByUser);
+            if (activeFiles.length === 0) {
+                filesDisplayArea.style.display = "none";
+                fileSummary.style.display = "none";
+                clearAllButton.style.display = "none";
+                sendButton.style.display = "none";
+                sendButton.disabled = true;
+            } else {
+                let totalSize = 0;
+                for (let i = 0; i < activeFiles.length; i++) {
+                    totalSize += activeFiles[i].size;
+                }
+                fileSummary.style.display = "block";
+                fileSummary.textContent = `${activeFiles.length} file(s) | Total: ${formatFileSize(totalSize)}`;
+                clearAllButton.style.display = "block";
+                sendButton.style.display = "block";
+                sendButton.disabled = false;
+            }
+        }
+
+        function createFileElement(file) {
+            const div = document.createElement("div");
+            div.className = "fileList";
+            div.dataset.fileName = file.name;
+
+            div.innerHTML = `
+                <div class="file-info">
+                    <i class="icon fa-solid ${getIconByFileType(file.name)}"></i>
+                    <div class="file-details">
+                        <div class="filename-container">
+                            <span class="filename" title="${file.name}">${file.name}</span>
+                        </div>
+                        <div class="file-meta-row">
+                            <span class="file-size">${formatFileSize(file.size)}</span>
+                            <button class="delete-file" title="Remove file"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                            </div>
+                    </div>
+                </div>
+                <div class="file-progress-container" style="display: none;">
+                    <span class="file-progress-text">0%</span>
+                    <div class="file-progress-bar"></div>
+                </div>
+            `;
+
+            const deleteBtn = div.querySelector(".delete-file");
+            deleteBtnEvent(deleteBtn, file, div);
+            return div;
+        }
+
+        function deleteBtnEvent(deleteBtn, file, div) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevents any parent click events
+                showConfirm(`Remove file "${file.name}" ?`, () => {
+                    file.skippedByUser = true;
+
+                    // If a transfer is already in progress, we MUST notify the receiver.
+                    if (isTransferring && connection && connection.open) {
+                        connection.send({ type: "skip", payload: { name: file.name } });
+                    }
+
+                    // If we're deleting the specific file being sent right now, show a special message.
+                    if (isTransferring && currentFile && currentFile.name === file.name) {
+                        showMessage(`"${file.name}" transfer cancelled`, "info");
+                    }
+                    div.remove();
+                    updateSummary();
+                });
+            });
+        }
+
+        function renderFiles() {
+            filesDisplayArea.innerHTML = "";
+            selectedFiles.sort((a, b) => a.size - b.size);
+            if (selectedFiles.length > 0) {
+                filesDisplayArea.style.display = "block";
+                selectedFiles.forEach(file => {
+                    if (file.skipped) return; // don't render skipped files
+                    filesDisplayArea.appendChild(createFileElement(file))
+                });
+            }
+            updateSummary();
+        }
+
+        function addFiles(fileList) {
+            for (const file of fileList) {
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            }
+            renderFiles();
+        }
+
+        function resetUI() {
+            isTransferring = false;
+            updateSummary();
+        }
+
+        function cancelTransfer() {
+            if (isTransferring) {
+                isTransferring = false; // This will stop the sending loop
+                currentFile = null;
+                if (connection && connection.open) {
+                    connection.send({ type: "cancel" }); // Notify receiver
+                    connection.close(); // Close the connection
+                }
+                showMessage("Transfer cancelled", "error");
+                resetUI();
+            }
+        }
+
+        backButton.addEventListener('click', () => {
+            if (connection && connection.open) {
+                showConfirm("Do you want to disconnect ?", () => {
+                    if (isTransferring) {
+                        cancelTransfer();
+                    }
+                    // remove the listener so the browser doesn't show its own pop-up
+                    window.removeEventListener('beforeunload', handleBeforeUnload);
+                    navigateWithAnimation("sender.html");
+                });
+            } else {
+                navigateWithAnimation("index.html");
+            }
+        });
+
+        inputtedFiles.addEventListener("change", (e) => addFiles(e.target.files));
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            container.classList.add('drag-over');
+        });
+        container.addEventListener('dragleave', () => container.classList.remove('drag-over'));
+        container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            container.classList.remove('drag-over');
+            addFiles(e.dataTransfer.files);
+        });
+        clearAllButton.addEventListener('click', () => {
+            showConfirm("Clear all files ?", () => {
+                selectedFiles = [];
+                renderFiles();
+            });
+        });
+
+        sendButton.addEventListener('click', async () => {
+            if (selectedFiles.length === 0 || !connection || !connection.open) {
+                showMessage("Please select files and ensure you are connected.", "error");
+                return;
+            }
+
+            isTransferring = true;
+            sendButton.disabled = true;
+            clearAllButton.disabled = true;
+            let successfulTransfers = 0;
+            let lastAck = { name: '', index: -1 };
+
+            lastAck = { name: '', index: -1 }; // incase lastAck holds values for old batch of files
+
+            const handleData = (data) => {
+                if (data.type === 'ack') {
+                    lastAck = { name: data.name, index: data.index };
+                }
+                if (data.type === 'skip') {
+                    const fileObj = selectedFiles.find(f => f.name === data.payload.name);
+                    if (fileObj) {
+                        fileObj.skippedByReceiver = true;
+                    }
+                }
+            };
+            connection.on('data', handleData);
+
+            const CHUNK_SIZE = 1024 * 1024;
+            selectedFiles.sort((a, b) => a.size - b.size);
+
+            for (const file of selectedFiles) {
+                if (file.skippedByUser) continue;
+                currentFile = file;
+                const fileUiElement = filesDisplayArea.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
+                if (!fileUiElement) continue;
+
+                const progressBar = fileUiElement.querySelector('.file-progress-bar');
+                const progressText = fileUiElement.querySelector('.file-progress-text');
+                const progressContainer = fileUiElement.querySelector('.file-progress-container');
+                progressContainer.style.display = 'block';
+
+                let transferFailed = false;
+
+                try {
+                    connection.send({
+                        type: "start",
+                        payload: { name: file.name, size: file.size, type: file.type }
+                    });
+
+                    let offset = 0;
+                    let chunkIndex = 0;
+
+                    while (offset < file.size) {
+                        if (!isTransferring || file.skippedByReceiver || file.skippedByUser) {
+                            transferFailed = true;
+                            break;
+                        }
+
+                        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+                        const buffer = await chunk.arrayBuffer();
+
+                        connection.send({
+                            type: "chunk",
+                            payload: { name: file.name, index: chunkIndex, data: buffer }
+                        });
+
+                        const waitStartTime = Date.now();
+                        while (lastAck.name !== file.name || lastAck.index < chunkIndex) {
+                            await new Promise(resolve => setTimeout(resolve, 50));
+                            if (Date.now() - waitStartTime > 30000) {
+                                throw new Error("Acknowledgement Timeout");
+                            }
+                            if (file.skippedByReceiver) {
+                                throw new Error("Receiver cancelled this file");
+                            }
+                        }
+
+                        offset += chunk.size;
+                        const percent = Math.round((offset / file.size) * 100);
+                        progressBar.style.width = percent + "%";
+                        progressText.textContent = percent + "%";
+                        chunkIndex++;
+                    }
+                } catch (err) {
+                    transferFailed = true;
+                    console.error(`Transfer of "${file.name}" failed:`, err);
+                    showMessage(`Transfer of "${file.name}" failed: ${err.message}`, "error");
+                    progressText.textContent = "Failed";
+                    fileUiElement.style.opacity = '0.3';
+                    fileUiElement.style.backgroundColor = "grey";
+                    const deleteBtn = document.querySelector('.delete-file');
+                    deleteBtn.disabled = true;
+                }
+
+                if (transferFailed) {
+                    continue;
+                } else {
+                    connection.send({ type: 'end', payload: { name: file.name } });
+                    lastAck = { name: '', index: -1 };
+                    progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
+                    successfulTransfers++;
+                }
+
+                currentFile = null;
+
+                if (successfulTransfers === selectedFiles.length && selectedFiles.length > 0) {
+                    showMessage("All files sent successfully!", "success");
+                    setTimeout(() => {
+                        selectedFiles = [];
+                        renderFiles();
+                    }, 1500);
+                }
+            }
+            connection.off('data', handleData);
+            isTransferring = false;
+            sendButton.disabled = false;
+            clearAllButton.disabled = false;
+        });
+
+        initializeDarkMode();
+        pageShow();
+
+        keepScreenOnCheckbox.addEventListener('change', () => {
+            toggleWakeLock(keepScreenOnCheckbox.checked);
+        });
+
+        // automatically release the lock if the connection closes
+        window.addEventListener('beforeunload', () => {
+            toggleWakeLock(false);
+        });
+
+        window.addEventListener('beforeunload', function (event) {
+            if (isTransferring) {
+                showConfirm('File transfer is in progress. Are you sure you want to leave ?', () => {
+                    navigateWithAnimation('sender.html');
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>

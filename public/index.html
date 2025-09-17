@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>P2P File Transfer - Menu</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        referrerpolicy="no-referrer" />
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="shared.js"></script>
+    <link rel="stylesheet" href="shared.css">
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <i class="fa-solid fa-paper-plane"></i> <span>LivelyShare</span>
+            </div>
+            <nav class="main-nav">
+                <a href="#">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <div id="container">
+        <button id="darkModeButton" title="Toggle dark mode" aria-label="Toggle dark mode">
+            <i class="fa-solid fa-sun"></i>
+        </button>
+        <h1><i class="fa-solid fa-share-nodes"></i> P2P File Transfer</h1>
+        <p>Instantly share files with anyone.</p>
+        <div class="menu-buttons">
+            <button id="sendPageButton"><i class="fa-solid fa-arrow-up-from-bracket"></i>Send Files</button>
+            <button id="receivePageButton"><i class="fa-solid fa-download"></i>Receive Files</button>
+        </div>
+    </div>
+    <script>
+        "use strict";
+        const sendPageButton = document.getElementById("sendPageButton");
+        const receivePageButton = document.getElementById("receivePageButton");
+        const darkModeButton = document.getElementById("darkModeButton");
+        const body = document.body;
+
+        body.classList.add('fade-in');
+
+        sendPageButton.addEventListener('click', async () => {
+            sendPageButton.disabled = true;
+            sendPageButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading';
+            setTimeout(() => {
+                navigateWithAnimation(`sender.html`);
+                sendPageButton.disabled = false;
+                sendPageButton.innerHTML = '<i class="fa-solid fa-arrow-up-from-bracket"></i> Send Files';
+            }, 500);
+        });
+
+        receivePageButton.addEventListener('click', () => {
+            receivePageButton.disabled = true;
+            receivePageButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading';
+
+            setTimeout(() => {
+                navigateWithAnimation('receiver.html');
+                receivePageButton.disabled = false;
+                receivePageButton.innerHTML = '<i class="fa-solid fa-download"></i> Receive Files';
+            }, 500);
+        });
+
+        initializeDarkMode();
+        pageShow();
+
+    </script>
+</body>
+
+</html>

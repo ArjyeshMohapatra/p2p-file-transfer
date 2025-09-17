@@ -1,0 +1,364 @@
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--page-bg);
+    font-family: "Rubik", sans-serif;
+    opacity: 0;
+    transition: background 0.6s ease, opacity 0.3s ease;
+}
+
+#main-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+h2 {
+    margin: 0;
+    font-size: 1.28rem;
+    font-weight: 600;
+    color: var(--text-main);
+    text-align: center;
+    margin-top: 2.5rem;
+}
+
+#manual-entry {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+}
+
+#peerIdInput {
+    font-size: 1.1rem;
+    font-family: "Rubik", sans-serif;
+    padding: 0.6em 1.2em;
+    border-radius: 50px;
+    border: 1.3px solid var(--accent);
+    background: rgba(230, 245, 255, 0.88);
+    color: var(--text-main);
+    text-align: center;
+    outline: none;
+    width: 80%;
+}
+
+html.dark-mode #peerIdInput {
+    background: rgba(34, 50, 65, 0.77);
+    color: var(--text-main-dark);
+}
+
+#connectButton {
+    background: linear-gradient(92deg, var(--accent), #08b4d4 80%);
+    color: #fff;
+    border: none;
+    border-radius: 60px;
+    font-family: "Rubik", sans-serif;
+    font-size: 1.07rem;
+    padding: 0.7rem 2.2rem;
+    cursor: pointer;
+}
+
+.file-list-container {
+    width: 100%;
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+    scroll-behavior: smooth;
+}
+
+.action-buttons {
+    margin-top: 1rem;
+    width: 100%;
+    display: none;
+    gap: 1.1rem;
+}
+
+.action-buttons button {
+    padding: 1rem 2.1rem;
+    border-radius: 50px;
+    font-weight: 600;
+    font-family: "Rubik", sans-serif;
+    font-size: 1.09rem;
+    border: none;
+    cursor: pointer;
+    width: 49%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5em;
+    transition: transform .18s;
+}
+
+.action-buttons .accept {
+    background: linear-gradient(90deg, var(--primary), var(--primary-dark) 90%);
+    color: #fff;
+}
+
+.action-buttons .accept:hover {
+    transform: translateY(-2px);
+}
+
+.action-buttons .reject {
+    background: linear-gradient(90deg, #ff5f69, #c1303e 80%);
+    color: #fff;
+}
+
+.action-buttons .reject:hover {
+    transform: translateY(-2px);
+}
+
+#peerIdInput.error {
+    border-color: var(--danger) !important;
+    animation: flashRed 0.6s ease 0s 2;
+}
+
+@keyframes flashRed {
+
+    0%,
+    100% {
+        border-color: var(--danger);
+        box-shadow: 0 0 6px var(--danger);
+    }
+
+    50% {
+        border-color: transparent;
+        box-shadow: none;
+    }
+}
+
+.download-file:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: #aaa;
+}
+
+@media (max-width: 600px) {
+    #container {
+        padding: 2rem 1.5rem;
+        gap: 1rem;
+        width: calc(100vw - 5rem);
+        min-width: auto;
+    }
+
+    h2 {
+        font-size: 1.1rem;
+        margin-top: 2.5rem;
+    }
+
+    #manual-entry {
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    #peerIdInput {
+        font-size: 1rem;
+        flex-grow: 1;
+    }
+
+    #connectButton {
+        font-size: 1rem;
+        padding: 0.6rem 2rem;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        gap: 0.8rem;
+        margin-top: 0.5rem;
+    }
+
+    .action-buttons button {
+        width: 100%;
+        font-size: 1rem;
+        padding: 0.8rem 0;
+    }
+
+    .backButton {
+        padding: 0.6rem 1.8rem;
+        font-size: 0.9rem;
+    }
+
+    #darkModeButton {
+        top: 1rem;
+        right: 1rem;
+        width: 40px;
+        height: 40px;
+        font-size: 1.1rem;
+    }
+
+    .dialog-box {
+        padding: 1rem;
+        font-size: 0.9rem;
+        max-width: 280px;
+    }
+
+    .dialog-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .dialog-buttons button {
+        width: 100%;
+        font-size: 0.9rem;
+        padding: 0.7rem;
+    }
+
+    #confirmYes {
+        margin-right: 0rem;
+    }
+
+    #confirmNo {
+        margin-left: 0rem;
+    }
+
+    #toggleDebugButton {
+        top: 1rem;
+        left: 1rem;
+        width: 40px;
+        height: 40px;
+        font-size: 1.1rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    #container {
+        max-width: 500px;
+    }
+
+    h2 {
+        font-size: 1.4rem;
+    }
+}
+
+@media (min-width: 1440px) {
+    html {
+        font-size: 18px;
+    }
+
+    #container {
+        max-width: 550px;
+    }
+}
+
+@media (min-width: 2200px) {
+    html {
+        font-size: 22px;
+    }
+
+    #container {
+        max-width: 650px;
+    }
+}
+
+
+/* ADD THIS CSS BLOCK */
+#debug-log-container {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    height: 150px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid #555;
+    border-radius: 8px;
+    z-index: 9999;
+    color: #fff;
+    font-family: "Rubik", sans-serif;
+    font-size: 10px;
+    display: none;
+    flex-direction: column;
+}
+
+#debug-log-container.show {
+    display: flex;
+}
+
+#debug-log-header {
+    background: #222;
+    padding: 4px 8px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#clear-log-button {
+    background: #555;
+    color: white;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#debug-log {
+    overflow-y: scroll;
+    padding: 5px;
+    flex-grow: 1;
+}
+
+.log-message {
+    padding: 2px 0;
+    border-bottom: 1px solid #333;
+    white-space: pre-wrap;
+}
+
+#inspect-state-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+#copy-log-button {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+#toggleDebugButton {
+    position: fixed;
+    top: 21px;
+    left: 21px;
+    z-index: 10;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgb(255, 255, 255);
+    color: #35394f;
+    font-size: 1.34rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .18s;
+}
+
+#toggleDebugButton:hover {
+    transform: scale(1.1);
+    background: #222d3a;
+    color: #fff;
+}
+
+html.dark-mode #toggleDebugButton {
+    background: #3b557b;
+    color: #7aff8c;
+}
+
+html.dark-mode #toggleDebugButton:hover {
+    background: #161b24;
+    color: #fff;
+}

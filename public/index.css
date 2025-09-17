@@ -1,0 +1,252 @@
+header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0 2rem;
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(131, 117, 117, 0.2);
+    z-index: 100;
+    transition: background 0.6s ease, border-color 0.6s ease;
+}
+
+html.dark-mode header {
+    background: var(--bg-glass-dark);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    height: 60px;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.logo i {
+    color: var(--primary);
+    animation: wormhole-effect 8s ease-in-out infinite;
+}
+
+.logo span {
+    background: linear-gradient(90deg,
+            #8a2be2,
+            #ff69b4,
+            #00bfff,
+            #ff69b4,
+            #8a2be2);
+    background-size: 300% auto;
+    animation: gradient-shift 8s ease-in-out infinite alternate;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    font-weight: 700;
+}
+
+.main-nav a {
+    font-size: 1rem;
+    color: var(--text-sub);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    margin: 3rem;
+}
+
+.main-nav a:hover {
+    color: var(--primary);
+}
+
+h1 {
+    color: var(--text-main);
+    font-size: 2rem;
+    text-align: center;
+    margin: 2rem 0rem 0rem 0rem;
+}
+
+#container p {
+    color: var(--text-sub);
+    text-align: center;
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    gap: 0.9rem;
+    margin-top: 1rem;
+}
+
+.menu-buttons button {
+    width: 100%;
+    min-width: 140px;
+    font-size: 1.18rem;
+    font-family: "Rubik", sans-serif;
+    padding: 0.92rem 0;
+    border: none;
+    border-radius: 60px;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.66em;
+    transition: transform .18s;
+}
+
+.menu-buttons button i.fa-solid {
+    font-size: 1.25em;
+    margin-right: .3em;
+}
+
+#sendPageButton {
+    background: linear-gradient(90deg, var(--primary) 30%, var(--primary-dark) 100%);
+    transition: transform .18s;
+}
+
+#sendPageButton:hover {
+    transform: translateY(-3px) scale(1.03);
+}
+
+#sendPageButton:active {
+    transform: scale(0.85);
+}
+
+#receivePageButton {
+    background: linear-gradient(92deg, var(--accent) 20%, #0880d0 100%);
+    transition: transform .18s;
+}
+
+#receivePageButton:hover {
+    transform: translateY(-3px) scale(1.03);
+}
+
+#receivePageButton:active {
+    transform: scale(0.85);
+}
+
+@keyframes gradient-shift {
+    from {
+        background-position: 0% center;
+    }
+
+    to {
+        background-position: 100% center;
+    }
+}
+
+@keyframes wormhole-effect {
+    0% {
+        transform: translate(0, 0);
+    }
+
+    25% {
+        transform: translate(3px, -4px);
+    }
+
+    50% {
+        transform: translate(-2px, 2px);
+    }
+
+    75% {
+        transform: translate(4px, 3px);
+    }
+
+    100% {
+        transform: translate(0, 0);
+    }
+}
+
+@media (max-width: 600px) {
+    header {
+        padding: 0 1rem;
+    }
+
+    .header-container {
+        height: 50px;
+    }
+
+    .logo {
+        font-size: 1.1rem;
+    }
+
+    #container {
+        padding: 2rem 1rem;
+        gap: 1.2rem;
+        min-width: auto;
+        width: 90vw;
+    }
+
+    h1 {
+        font-size: 1.6rem;
+        margin-top: 2.5rem;
+    }
+
+    p {
+        font-size: 1rem;
+    }
+
+    .menu-buttons {
+        flex-direction: column;
+    }
+
+    .menu-buttons button {
+        font-size: 1.1rem;
+        padding: 0.85rem 0;
+    }
+
+    #darkModeButton {
+        top: 1rem;
+        right: 1rem;
+        width: 40px;
+        height: 40px;
+        font-size: 1.1rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    #container {
+        max-width: 450px;
+        padding: 3rem;
+    }
+
+    h1 {
+        font-size: 2.2rem;
+    }
+
+    p {
+        font-size: 1.1rem;
+    }
+}
+
+@media (min-width: 1440px) {
+    html {
+        font-size: 18px;
+    }
+
+    #container {
+        max-width: 500px;
+    }
+}
+
+@media (min-width: 2200px) {
+    html {
+        font-size: 22px;
+    }
+
+    #container {
+        max-width: 600px;
+    }
+}
