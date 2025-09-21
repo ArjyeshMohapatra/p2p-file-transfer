@@ -28,6 +28,7 @@
 
 <body>
     <input type="file" id="inputFile" multiple style="display:none">
+    <input type="file" id="inputFolder" multiple webkitdirectory style="display:none">
 
     <div id="message"></div>
 
@@ -54,7 +55,18 @@
 
         <div id="file-selection-area">
 
-            <label for="inputFile" id="file-label"><i class="fa-solid fa-folder-open"></i> Choose or Drag Files</label>
+            <label for="inputFile" id="file-label">
+                <button id="dropdown-button" class="dropdown-button">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span id="dropdown-button-text">Choose or Drag Files</span>
+                    <i id="caret-up-icon" class="fa-solid fa-caret-up"></i>
+                </button>
+                <div id="dropdown-menu" class="dropdown-menu-hidden">
+                    <a href="#" id="choose-files-option"><i class="fa-solid fa-file-lines"></i> Choose Files</a>
+                    <a href="#" id="choose-folder-option"><i class="fa-solid fa-folder"></i> Choose Folder</a>
+                </div>
+            </label>
+
             <div id="fileChoosen"></div>
             <div id="fileSummary"></div>
 
@@ -110,6 +122,15 @@
         const noBtn = document.getElementById("confirmNo");
         const keepScreenOnCheckbox = document.getElementById('keepScreenOnCheckbox');
         const shareIdButton = document.getElementById('shareIdButton');
+        const dropdownButton = document.getElementById('dropdown-button');
+        const dropdownButtonText = document.getElementById('dropdown-button-text');
+        const dropdownMenu = document.getElementById('dropdown-menu');
+        const chooseFilesOption = document.getElementById('choose-files-option');
+        const chooseFolderOption = document.getElementById('choose-folder-option');
+        const inputFolder = document.getElementById('inputFolder');
+        const caretUpIcon = document.getElementById('caret-up-icon');
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        const isProblematicMobileBrowser = /SamsungBrowser/i.test(userAgent) || (/android/i.test(userAgent) && !/chrome/i.test(userAgent));
 
         window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -205,11 +226,18 @@
                 connection.on('open', () => {
                     h2_connection.innerHTML = '<h2><i class="fa-solid fa-link"></i> Connected to Receiver <i class="fa fa-check-circle" style="color:var(--primary);"></i></h2>';
                     connectionInfoDiv.classList.add('connected-state');
-
                     fileSelectionArea.classList.add('visible');
 
                     console.log("Receiver connected.");
                     showMessage("Receiver connected!", "success");
+
+                    setTimeout(() => {
+                        if (isProblematicMobileBrowser) {
+                            chooseFolderOption.classList.add('disabled-option');
+                            chooseFolderOption.title = "Folder selection is not supported on this browser.";
+                            showMessage("Folder features disabled for compatibility.", "info");
+                        }
+                    }, 3000);
 
                     connection.peerConnection.onconnectionstatechange = () => {
                         const state = connection.peerConnection.connectionState;
@@ -444,16 +472,100 @@
         });
 
         inputtedFiles.addEventListener("change", (e) => addFiles(e.target.files));
+        inputFolder.addEventListener("change", (e) => addFiles(e.target.files));
+
+        dropdownButton.addEventListener('click', (e) => {
+            e.preventDefault(); // prevents form submission
+            dropdownMenu.classList.toggle('dropdown-menu-visible');
+            dropdownMenu.classList.toggle('dropdown-menu-hidden');
+            caretUpIcon.classList.toggle('rotate');
+        });
+
+        chooseFilesOption.addEventListener('click', (e) => {
+            e.preventDefault();
+            dropdownButtonText.textContent = 'Choose Files';
+            dropdownMenu.classList.remove('dropdown-menu-visible');
+            dropdownMenu.classList.add('dropdown-menu-hidden');
+            inputtedFiles.click();
+            caretUpIcon.classList.remove('rotate');
+        });
+
+        chooseFolderOption.addEventListener('click', (e) => {
+            e.preventDefault();
+            dropdownButtonText.textContent = 'Choose Folder';
+            dropdownMenu.classList.remove('dropdown-menu-visible');
+            dropdownMenu.classList.add('dropdown-menu-hidden');
+            inputFolder.click();
+            caretUpIcon.classList.remove('rotate');
+        });
+
+        window.addEventListener('click', (event) => {
+            if (!dropdownButton.contains(event.target) && (!dropdownMenu.contains(event.target))) {
+                dropdownMenu.classList.remove('dropdown-menu-visible');
+                dropdownMenu.classList.add('dropdown-menu-hidden');
+                caretUpIcon.classList.remove('rotate');
+            }
+        });
+
         container.addEventListener('dragover', (e) => {
             e.preventDefault();
             container.classList.add('drag-over');
         });
         container.addEventListener('dragleave', () => container.classList.remove('drag-over'));
-        container.addEventListener('drop', (e) => {
-            e.preventDefault();
-            container.classList.remove('drag-over');
-            addFiles(e.dataTransfer.files);
-        });
+
+        function setupCompatibility() {
+            container.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                container.classList.remove('drag-over');
+
+                if (e.dataTransfer.items && e.dataTransfer.items[0]?.webkitGetAsEntry && !isProblematicMobileBrowser) {
+                    async function readAllDirectoryEntries(directoryReader) {
+                        let allEntries = [];
+                        let currentEntries = await new Promise(resolve => directoryReader.readEntries(resolve));
+                        while (currentEntries.length > 0) {
+                            allEntries = allEntries.concat(currentEntries);
+                            currentEntries = await new Promise(resolve => directoryReader.readEntries(resolve));
+                        }
+                        return allEntries;
+                    }
+                    async function getFilesFromEntry(entry) {
+                        if (entry.isFile) return new Promise(resolve => entry.file(resolve));
+                        if (entry.isDirectory) {
+                            const reader = entry.createReader();
+                            const allEntries = await readAllDirectoryEntries(reader);
+                            const filesInDir = await Promise.all(allEntries.map(getFilesFromEntry));
+                            return filesInDir.flat();
+                        }
+                        return null;
+                    }
+                    const promises = [];
+                    for (const item of e.dataTransfer.items) {
+                        const entry = item.webkitGetAsEntry();
+                        if (entry) {
+                            promises.push(getFilesFromEntry(entry));
+                        }
+                    }
+
+                    const nestedFiles = await Promise.all(promises);
+                    const allFiles = nestedFiles.flat().filter(file => file);
+
+                    if (allFiles.length > 0) {
+                        addFiles(allFiles);
+                        showMessage(`${allFiles.length} item(s) added!`, "success");
+                    } else {
+                        showMessage("Could not read the dropped items.", "error");
+                    }
+                } else {
+                    if (isProblematicMobileBrowser) {
+                        showMessage("Folder drop is not supported on this browser.", "info");
+                    }
+                    addFiles(e.dataTransfer.files);
+                }
+            });
+        }
+
+        setupCompatibility();
+
         clearAllButton.addEventListener('click', () => {
             showConfirm("Clear all files ?", () => {
                 selectedFiles = [];

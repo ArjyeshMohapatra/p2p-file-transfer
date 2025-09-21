@@ -9,16 +9,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from './db.js';
 import logger from './logger.js'; // looks for logger.js inside current directory
-import rateLimit from 'express-rate-limit';
+// import rateLimit from 'express-rate-limit';
 import { param, validationResult } from 'express-validator';
 import compression from 'compression';
 
-const limiter = rateLimit({
+/* const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 10 minutes
     max: 100, // limits each IP to 20 requests per window
     standardHeaders: true, // returns rate limit info in the `RateLimit-*` headers
     legacyHeaders: false // disables the `X-RateLimit-*` headers
-});
+}); */
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,7 +28,7 @@ const app = express(); // creates an express application
 
 const PORT = process.env.PORT || 9000; // defines port number where above express app will run
 app.use(cors());
-app.use(limiter);
+// app.use(limiter);
 app.use(compression());
 
 // below server is needed because PeerJS mediator requires a http server to run

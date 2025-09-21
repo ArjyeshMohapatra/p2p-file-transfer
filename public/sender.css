@@ -104,6 +104,17 @@ html.dark-mode .glow-qr {
 
 #file-label {
     width: 100%;
+    padding: 0;
+    border: none;
+    border-radius: 15px;
+    background: none;
+    position: relative;
+    cursor: pointer;
+    display: block;
+}
+
+.dropdown-button {
+    width: 100%;
     font-size: 1.18rem;
     font-weight: 600;
     padding: 1.4rem 0;
@@ -117,10 +128,68 @@ html.dark-mode .glow-qr {
     justify-content: center;
     gap: .7em;
     transition: all .2s;
+    font-family: "Rubik", sans-serif;
 }
 
-html.dark-mode #file-label {
+html.dark-mode .dropdown-button {
     border-color: #63dea6;
+    background: rgba(4, 9, 14, 0.2);
+}
+
+#file-label:hover .dropdown-button,
+#container.drag-over #file-label .dropdown-button {
+    background: rgba(22, 219, 101, .1);
+    color: var(--primary-dark);
+    border-color: var(--primary);
+}
+
+#file-selection-area.visible #file-label .dropdown-button {
+    animation: file-glow 2s ease-in-out infinite;
+}
+
+#dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: var(--file-row-bg);
+    border: 1px solid rgba(131, 117, 117, 0.4);
+    border-radius: 15px;
+    z-index: 10;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    margin-top: 5px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+html.dark-mode #dropdown-menu {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#dropdown-menu a {
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+    padding: 0.8rem 1.5rem;
+    text-decoration: none;
+    color: var(--text-main);
+    transition: background 0.2s ease;
+}
+
+#dropdown-menu a:hover {
+    background: rgba(22, 219, 101, .1);
+}
+
+.dropdown-menu-hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+}
+
+.dropdown-menu-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
 }
 
 #file-label:hover,
@@ -314,7 +383,25 @@ html.dark-mode #file-label {
     transform: scale(0.85);
 }
 
+#caret-up-icon {
+    transition: transform 0.3s ease;
+}
+
+#caret-up-icon.rotate {
+    transform: rotate(180deg);
+}
+
+.disabled-option {
+    pointer-events: none;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 @media (max-width: 600px) {
+    .dropdown-button {
+        font-size: 1rem;
+    }
+
     #container {
         padding: 2rem 1.5rem;
         gap: 1rem;
@@ -371,11 +458,6 @@ html.dark-mode #file-label {
     #qrcode {
         transform: scale(0.85);
         margin-top: -10px;
-    }
-
-    #file-label {
-        font-size: 1rem;
-        padding: 1.2rem 0;
     }
 
     .action-buttons {
