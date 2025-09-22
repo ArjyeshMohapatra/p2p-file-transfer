@@ -177,7 +177,18 @@
                         { urls: 'stun:stun.l.google.com:19302' },
                         { urls: 'stun:stun1.l.google.com:19302' },
                         { urls: 'stun:stun2.l.google.com:19302' },
-                        { urls: 'stun:stun.services.mozilla.com' }
+                        { urls: 'stun:stun.services.mozilla.com' },
+
+                        {
+                            urls: "turn:openrelay.metered.ca:80",
+                            username: "openrelayproject",
+                            credential: "openrelayproject"
+                        },
+                        {
+                            urls: "turn:openrelay.metered.ca:443",
+                            username: "openrelayproject",
+                            credential: "openrelayproject"
+                        }
                     ]
                 }
             });
@@ -573,6 +584,7 @@
             });
         });
 
+        // REPLACE the entire sendButton.addEventListener('click', ...) function with this:
         sendButton.addEventListener('click', async () => {
             if (selectedFiles.length === 0 || !connection || !connection.open) {
                 showMessage("Please select files and ensure you are connected.", "error");
@@ -583,14 +595,9 @@
             sendButton.disabled = true;
             clearAllButton.disabled = true;
             let successfulTransfers = 0;
-            let lastAck = { name: '', index: -1 };
 
-            lastAck = { name: '', index: -1 }; // incase lastAck holds values for old batch of files
-
+            // This listener is essential for handling acks and skips from the receiver
             const handleData = (data) => {
-                if (data.type === 'ack') {
-                    lastAck = { name: data.name, index: data.index };
-                }
                 if (data.type === 'skip') {
                     const fileObj = selectedFiles.find(f => f.name === data.payload.name);
                     if (fileObj) {
@@ -606,6 +613,7 @@
             for (const file of selectedFiles) {
                 if (file.skippedByUser) continue;
                 currentFile = file;
+
                 const fileUiElement = filesDisplayArea.querySelector(`[data-file-name="${CSS.escape(file.name)}"]`);
                 if (!fileUiElement) continue;
 
@@ -615,6 +623,7 @@
                 progressContainer.style.display = 'block';
 
                 let transferFailed = false;
+                let chunkIndex = 0;
 
                 try {
                     connection.send({
@@ -623,8 +632,6 @@
                     });
 
                     let offset = 0;
-                    let chunkIndex = 0;
-
                     while (offset < file.size) {
                         if (!isTransferring || file.skippedByReceiver || file.skippedByUser) {
                             transferFailed = true;
@@ -634,21 +641,24 @@
                         const chunk = file.slice(offset, offset + CHUNK_SIZE);
                         const buffer = await chunk.arrayBuffer();
 
-                        connection.send({
-                            type: "chunk",
-                            payload: { name: file.name, index: chunkIndex, data: buffer }
-                        });
+                        // Efficiently wait for the specific ack for this chunk
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(new Error("Acknowledgement Timeout")), 30000);
 
-                        const waitStartTime = Date.now();
-                        while (lastAck.name !== file.name || lastAck.index < chunkIndex) {
-                            await new Promise(resolve => setTimeout(resolve, 50));
-                            if (Date.now() - waitStartTime > 30000) {
-                                throw new Error("Acknowledgement Timeout");
-                            }
-                            if (file.skippedByReceiver) {
-                                throw new Error("Receiver cancelled this file");
-                            }
-                        }
+                            const handleAck = (data) => {
+                                if (data.type === 'ack' && data.name === file.name && data.index === chunkIndex) {
+                                    clearTimeout(timeout);
+                                    connection.off('data', handleAck); // Clean up the specific listener for this chunk
+                                    resolve();
+                                }
+                            };
+                            connection.on('data', handleAck);
+
+                            connection.send({
+                                type: "chunk",
+                                payload: { name: file.name, index: chunkIndex, data: buffer }
+                            });
+                        });
 
                         offset += chunk.size;
                         const percent = Math.round((offset / file.size) * 100);
@@ -661,31 +671,27 @@
                     console.error(`Transfer of "${file.name}" failed:`, err);
                     showMessage(`Transfer of "${file.name}" failed: ${err.message}`, "error");
                     progressText.textContent = "Failed";
-                    fileUiElement.style.opacity = '0.3';
-                    fileUiElement.style.backgroundColor = "grey";
-                    const deleteBtn = document.querySelector('.delete-file');
-                    deleteBtn.disabled = true;
                 }
 
                 if (transferFailed) {
                     continue;
                 } else {
-                    connection.send({ type: 'end', payload: { name: file.name } });
-                    lastAck = { name: '', index: -1 };
+                    connection.send({ type: 'end', payload: { name: file.name, totalChunks: chunkIndex } });
                     progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
                     successfulTransfers++;
                 }
-
                 currentFile = null;
-
-                if (successfulTransfers === selectedFiles.length && selectedFiles.length > 0) {
-                    showMessage("All files sent successfully!", "success");
-                    setTimeout(() => {
-                        selectedFiles = [];
-                        renderFiles();
-                    }, 1500);
-                }
             }
+
+            if (successfulTransfers > 0 && successfulTransfers === selectedFiles.filter(f => !f.skippedByUser).length) {
+                showMessage("All files sent successfully!", "success");
+                setTimeout(() => {
+                    selectedFiles = [];
+                    renderFiles();
+                }, 1500);
+            }
+
+            // Clean up the general listener after all files are processed
             connection.off('data', handleData);
             isTransferring = false;
             sendButton.disabled = false;

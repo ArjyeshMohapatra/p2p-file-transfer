@@ -121,9 +121,11 @@
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 3;
     let fileQueue = [];
-    let db; // this will hold database connection
     let chunkTimeout = null;
     const CHUNK_TIMEOUT_DURATION = 30000;
+    const NUM_WORKERS = 4; // A pool of 4 workers
+    const workers = [];
+    let nextWorker = 0;
     const SERVER_URL = '';
 
     if (peerId) {
@@ -170,14 +172,70 @@
         });
     }
 
-    function startConnection(senderId) {
-        openDatabase();
+    function handleWorkerMessage(event) {
+        const { success, fileName, index, error } = event.data;
+        if (success) {
+            const file = Object.values(incomingFiles).find(f => f.originalName === fileName);
+            if (file) {
+                file.ackedChunks++; // ADD THIS
+                checkAndAssemble(fileName); // ADD THIS
+            }
+            if (connection && connection.open) {
+                connection.send({ type: "ack", name: fileName, index: index });
+                console.log(`WORKER finished, sending ack for ${fileName}, chunk #${index}`);
+            }
+        } else {
+            console.error("Worker failed to save chunk:", error);
+            showMessage("A chunk failed to save, the transfer may be corrupted.", "error");
+        }
+    }
+
+    function clearDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.deleteDatabase("fileStorageDB");
+            request.onsuccess = () => resolve();
+            request.onerror = (event) => reject(event.target.error);
+        });
+    }
+
+    async function startConnection(senderId) {
+        try {
+            await clearDatabase();
+            console.log("Database cleared successfully before starting connection.");
+        } catch (error) {
+            console.error("Could not clear database, starting with old data:", error);
+        }
+
+        for (let i = 0; i < NUM_WORKERS; i++) {
+            const worker = new Worker('db-worker.js');
+            worker.onmessage = handleWorkerMessage;
+            workers.push(worker);
+        }
+
         peer = new Peer({
             host: window.location.hostname,
             port: 443,
             path: '/peerjs/myapp',
             secure: true,
-            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun.services.mozilla.com' },
+
+                    {
+                        urls: "turn:openrelay.metered.ca:80",
+                        username: "openrelayproject",
+                        credential: "openrelayproject"
+                    },
+                    {
+                        urls: "turn:openrelay.metered.ca:443",
+                        username: "openrelayproject",
+                        credential: "openrelayproject"
+                    }
+                ]
+            }
         });
 
         peer.on('open', id => {
@@ -292,8 +350,12 @@
         const completeFileObject = {
             name: displayName,
             metadata: payload,
-            receivedSize: 0
+            receivedSize: 0,
+            ackedChunks: 0,
+            totalChunks: 0,
+            isEnding: false
         };
+
         incomingFiles[displayName] = completeFileObject;
         completeFileObject.originalName = payload.name;
 
@@ -346,18 +408,8 @@
             data: payload.data
         };
 
-        try {
-            // wait for saving to database
-            await saveChunk(chunkToSave);
-
-            // Send the acknowledgement immediately.
-            connection.send({ type: "ack", name: payload.name, index: payload.index });
-
-            console.log(`RECEIVER: Sending ack for ${payload.name}, chunk #${payload.index}`);
-        } catch (error) {
-            console.error("Failed to save chunk to DB.", error);
-            showMessage("Chunk save failed", "error");
-        }
+        workers[nextWorker].postMessage(chunkToSave);
+        nextWorker = (nextWorker + 1) % NUM_WORKERS;
     }
 
     async function processQueue() {
@@ -422,37 +474,14 @@
         if (chunkTimeout) clearTimeout(chunkTimeout);
         chunkTimeout = null;
 
-        const file = incomingFiles[payload.name];
+        const file = Object.values(incomingFiles).find(f => f.originalName === payload.name);
         if (!file) {
             logToScreen(`ERROR: handleFileEnd called for unknown file: ${payload.name}`);
             return;
         }
-
-        try {
-            const blob = await getChunksAndAssembleFile(payload);
-            downloadableBlobs[file.name] = blob;
-
-            const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(payload.name)}"]`);
-            if (fileUiElement) {
-                const progressText = fileUiElement.querySelector('.file-progress-text');
-                progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
-
-                const downloadBtn = fileUiElement.querySelector('.download-file');
-                downloadBtn.disabled = false;
-                downloadBtn.querySelector('i').style.color = 'var(--primary)';
-            }
-
-            deleteFileChunks(payload.name);
-
-        } catch (error) {
-            console.error("Failed to assemble file from DB:", error);
-            showMessage("Error processing received file.", "error");
-        } finally {
-            logToScreen(`In finally: Setting currentReceivingFile to null.`);
-            currentReceivingFile = null;
-            logToScreen(`In finally: Calling processQueue() with a short delay.`);
-            setTimeout(processQueue, 100);
-        }
+        file.isEnding = true;
+        file.totalChunks = payload.totalChunks;
+        checkAndAssemble(payload.name);
     }
 
     function handleSkippedFile(payload) {
@@ -661,6 +690,7 @@
         incomingFilesList.style.display = 'none';
         incomingFilesList.innerHTML = "";
         h2.innerHTML = '<i class="fa-solid fa-inbox"></i> Waiting for Files...';
+        clearDatabase();
     }
 
     function markInputError(msgText) {
@@ -677,57 +707,31 @@
         }, 1200);
     }
 
-    function openDatabase() {
-        // request is a type of ticket
-        // indexedDB is a type of master key maker built into every browser
-        // we made a request to master key maker to open a storage box
-        // fileStorageDB is the name of our personal storage box we want to open
-        // 1 is version number or 1st edition of our storage box
-        const request = indexedDB.open("fileStorageDB", 1);
+    async function checkAndAssemble(fileName) {
+        const file = Object.values(incomingFiles).find(f => f.originalName === fileName);
+        if (!file) return;
 
-        // we are telling our request ticket if our storage box or database is new and empty we need to set it up
-        request.onupgradeneeded = function (event) {
-            let database = event.target.result; // browser gives us new empty database
-
-            // builds a shelf like ObjectStore inside our database to hold file chunks
-            database.createObjectStore("fileChunks", { autoIncrement: true });
-        }
-        request.onsuccess = function (event) {
-            db = event.target.result; // browser gives us sucessful connection
-            console.log('Database is open and ready to be used.');
-
+        if (file.isEnding && file.ackedChunks === file.totalChunks) {
+            logToScreen(`All ${file.totalChunks} chunks saved for ${fileName}. Assembling now.`);
             try {
-                const transaction = db.transaction(["fileChunks"], "readwrite");
-                const store = transaction.objectStore("fileChunks");
-                store.clear(); // This command empties the storage
-                console.log("Cleared old file chunks from previous sessions.");
+                const blob = await getChunksAndAssembleFile({ name: file.originalName, type: file.metadata.type });
+                downloadableBlobs[file.name] = blob;
+
+                const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(file.originalName)}"]`);
+                if (fileUiElement) {
+                    const progressText = fileUiElement.querySelector('.file-progress-text');
+                    progressText.innerHTML = `<i class="fa fa-check-circle" style="color:var(--primary);"></i>`;
+                    const downloadBtn = fileUiElement.querySelector('.download-file');
+                    downloadBtn.disabled = false;
+                    downloadBtn.querySelector('i').style.color = 'var(--primary)';
+                }
+                currentReceivingFile = null;
+                setTimeout(processQueue, 100);
             } catch (error) {
-                console.error("Could not clear old chunks:", error);
+                console.error("Failed to assemble file from DB:", error);
+                showMessage("Error processing received file.", "error");
             }
         }
-        request.onerror = function (event) {
-            console.log('Database error ', event.target.error);
-        }
-    }
-
-    // helps in saving a single chunk to database
-    function saveChunk(chunk) {
-        return new Promise(function (resolve, reject) {
-            const transaction = db.transaction(["fileChunks"], "readwrite");
-            const store = transaction.objectStore("fileChunks");
-            const request = store.add(chunk);
-
-            // When the save is successful, the promise is resolved.
-            request.onsuccess = function () {
-                resolve();
-            };
-
-            // If there's an error, the promise is rejected.
-            request.onerror = function (event) {
-                console.error("Error saving chunk to DB:", event.target.error);
-                reject(event.target.error);
-            };
-        });
     }
 
     function getChunksAndAssembleFile(payload) {
@@ -735,64 +739,50 @@
             const fileName = payload.name;
             const fileType = payload.type;
 
-            const transaction = db.transaction(["fileChunks"], "readonly");
-            const store = transaction.objectStore("fileChunks");
-            const chunks = [];
+            // --- ADD the database opening logic here ---
+            const openRequest = indexedDB.open("fileStorageDB", 1);
 
-            const request = store.openCursor();
-
-            request.onsuccess = function (event) {
-                const cursor = event.target.result;
-                if (cursor) {
-                    if (cursor.value.fileName === fileName) {
-                        chunks.push(cursor.value);
-                    }
-                    cursor.continue();
-                } else {
-                    if (chunks.length === 0) {
-                        reject(new Error(`No chunks found for ${fileName}`));
-                        return;
-                    }
-
-                    chunks.sort((a, b) => a.index - b.index);
-
-                    const finalData = chunks.map(c => c.data);
-                    const fileBlob = new Blob(finalData, { type: fileType });
-
-                    const fileUiElement = incomingFilesList.querySelector(`[data-file-name="${CSS.escape(fileName)}"]`);
-                    if (fileUiElement) {
-                        const progressText = fileUiElement.querySelector('.file-progress-text');
-                        const progressBar = fileUiElement.querySelector('.file-progress-bar');
-                        progressText.textContent = '100%';
-                        progressBar.style.width = '100%';
-                    }
-
-                    resolve(fileBlob);
-                }
+            openRequest.onerror = (event) => {
+                reject(new Error("IndexedDB error while opening DB for assembly"));
             };
 
-            request.onerror = function (event) {
-                reject(new Error("IndexedDB error while assembling file"));
+            openRequest.onsuccess = (event) => {
+                const db = event.target.result;
+                const transaction = db.transaction(["fileChunks"], "readonly");
+                const store = transaction.objectStore("fileChunks");
+                const chunks = [];
+
+                const request = store.openCursor();
+
+                request.onsuccess = function (event) {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        if (cursor.value.fileName === fileName) {
+                            chunks.push(cursor.value);
+                        }
+                        cursor.continue();
+                    } else {
+                        if (chunks.length === 0) {
+                            reject(new Error(`No chunks found for ${fileName}`));
+                            return;
+                        }
+
+                        chunks.sort((a, b) => a.index - b.index);
+
+                        const finalData = chunks.map(c => c.data);
+                        const fileBlob = new Blob(finalData, { type: fileType });
+
+                        resolve(fileBlob);
+                    }
+                };
+
+                request.onerror = function (event) {
+                    reject(new Error("IndexedDB error while assembling file"));
+                };
             };
         });
     }
 
-
-    function deleteFileChunks(fileName) {
-        const transaction = db.transaction(["fileChunks"], "readwrite");
-        const store = transaction.objectStore("fileChunks");
-
-        const request = store.openCursor();
-        request.onsuccess = function (event) {
-            const cursor = event.target.result;
-            if (cursor) {
-                if (cursor.value.fileName === fileName) {
-                    cursor.delete(); // Delete the matching chunk.
-                }
-                cursor.continue();
-            }
-        };
-    }
 
     backButton.addEventListener('click', () => {
         if (connection && connection.open) {
